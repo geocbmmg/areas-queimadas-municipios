@@ -166,11 +166,30 @@ python ..\infra\30_estado.py
 
 ```
 git add -A && git commit -m "..." && git push
-cd app && npx vercel --prod --yes
 ```
 
-O endereço `areas-queimadas-municipios.vercel.app` é fixo entre deploys,
-então **não** é preciso recadastrar nada no OAuth a cada publicação.
+Só isso: a Vercel está ligada ao GitHub e **publica sozinha a cada
+push**. O endereço `areas-queimadas-municipios.vercel.app` é fixo entre
+deploys, então **não** é preciso recadastrar nada no OAuth.
+
+Para forçar uma publicação sem commit, **da raiz do repositório**:
+
+```
+npx vercel --prod --yes
+```
+
+> **Duas armadilhas que já derrubaram o site com 404:**
+>
+> 1. O site mora em `app/`, mas a Vercel publica a partir da **raiz**.
+>    Quem resolve é o `outputDirectory: "app"` no `vercel.json` da raiz.
+>    Sem ele, o deploy automático serve uma pasta sem `index.html`.
+> 2. Rodar `vercel` de dentro de `app/` cria um **projeto diferente**,
+>    batizado com o nome da pasta — e o endereço bom continua apontando
+>    para o deploy antigo. Rode sempre da raiz, onde está o `.vercel`.
+>
+> O `vercel.json` também **não aceita chaves extras** (nem `//` como
+> comentário): o deploy falha com *"should NOT have additional
+> property"*.
 
 Domínio novo (se algum dia houver) precisa entrar nos dois lugares:
 
