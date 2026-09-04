@@ -435,8 +435,17 @@ def poligonos_do_par(ee, cel, dia_base, sr_base, dia_atual, sr_atual,
                 sub["bbox"] = [b[0] + i * passo_x, b[1] + j * passo_y,
                                b[0] + (i + 1) * passo_x,
                                b[1] + (j + 1) * passo_y]
-                f2, n2, t2 = poligonos_do_par(ee, sub, dia_base, sr_base,
-                                              dia_atual, sr_atual, 1)
+                try:
+                    f2, n2, t2 = poligonos_do_par(ee, sub, dia_base, sr_base,
+                                                  dia_atual, sr_atual, 1)
+                except Exception as e_sub:
+                    # sub-bloco fora da faixa da cena naquela data: a
+                    # coleção volta vazia e o mosaic() não tem banda
+                    # nenhuma. Não é erro — é ausência de imagem ali.
+                    if "No band named" in str(e_sub) or \
+                       "Available band names: []" in str(e_sub):
+                        continue
+                    raise
                 feats.extend(f2)
                 bruto += n2
                 trunc = trunc or t2
