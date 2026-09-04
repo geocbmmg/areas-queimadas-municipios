@@ -3,6 +3,21 @@
 Este arquivo é o que falta para sair do zero num PC novo. O **o quê e o
 porquê** estão em [DOCUMENTACAO.md](DOCUMENTACAO.md); aqui é o **como**.
 
+## O caminho curto
+
+```bash
+git clone https://github.com/geocbmmg/areas-queimadas-municipios.git
+cd areas-queimadas-municipios
+"C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" infra\00_checar_ambiente.py
+```
+
+O verificador diz **exatamente o que falta e o comando para resolver**:
+bibliotecas, credenciais do Portal, autenticação do Earth Engine. Quando
+ele disser "Tudo pronto", siga para `infra/30_estado.py`, que mostra em
+que pé o processamento está e qual é o próximo passo.
+
+O resto deste arquivo é o detalhe de cada item.
+
 ---
 
 ## 1. O que NÃO está no repositório (e por quê)
@@ -27,11 +42,23 @@ Nada disso é segredo perdido: tudo se regenera com os scripts do repo.
 - **Node.js** (só para `npx vercel`, ao publicar)
 - **git** e **gh** (GitHub CLI), autenticado como `geocbmmg`
 
-Um pacote falta no ambiente do Pro (só para o histórico):
+Dois pacotes costumam faltar (o verificador confirma quais):
 
 ```
-"C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" -m pip install --user earthengine-api
+"C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" -m pip install --user shapely earthengine-api
 ```
+
+> **Armadilha que custou várias tentativas:** o Python do ArcGIS Pro
+> **nem sempre inclui o `site-packages` do usuário no `sys.path`** — o
+> mesmo executável carrega `shapely` numa sessão do PowerShell e falha
+> com `ModuleNotFoundError` noutra, dependendo de como o terminal foi
+> aberto. O sintoma é cruel: um módulo diferente falta a cada execução,
+> parecendo que a instalação não funcionou.
+>
+> Os scripts do projeto já **acrescentam esse caminho sozinhos** no topo
+> do arquivo. Se você rodar um comando avulso (`python -c "import ee"`)
+> e ele falhar mesmo com o pacote instalado, é isso — e o
+> `00_checar_ambiente.py` denuncia com um AVISO.
 
 > **Área geodésica não depende de biblioteca.** `pyproj` não existe
 > nesse ambiente e `geographiclib` some conforme o terminal — instalar
@@ -155,7 +182,27 @@ e, no Copernicus, em *Allowed origins* do OAuth client.
 
 ---
 
-## 9. Armadilhas que já custaram caro
+## 9. Onde o processamento parou
+
+Estado em **04/09/2026**, ao passar o trabalho para outra máquina:
+
+- **Painel:** pronto e publicado, com as quatro vistas de validação
+  (cor verdadeira e falsa cor, antes e depois) e o consolidado mensal.
+- **Parâmetros no Portal:** completos — 22 classes de biomassa (B×C),
+  66 fatores de emissão, 364 tiles de uso do solo (2017–2023).
+- **Histórico:** **começado, longe do fim.** Rodaram algumas células de
+  2017 (A1 e A2, parcial). Faltam a maioria das 52 células e os anos de
+  2018 a 2025.
+- **Consolidado mensal:** nenhum mês fechado ainda — só faz sentido
+  depois que o histórico do mês estiver completo.
+
+Ou seja: **o próximo passo é rodar o backfill até o fim** (§7), depois
+consolidar os meses no painel e validar por amostragem.
+
+`python infra/30_estado.py` dá esse retrato atualizado a qualquer
+momento — não confie nesta seção, que envelhece.
+
+## 10. Armadilhas que já custaram caro
 
 Estão detalhadas na DOCUMENTACAO.md, mas as que mais mordem:
 
@@ -173,3 +220,12 @@ Estão detalhadas na DOCUMENTACAO.md, mas as que mais mordem:
   Sempre conferir `addResults`/`updateResults`/`deleteResults`.
 - **Duas rodadas do backfill na mesma célula** duplicam linhas de
   controle. Rode uma de cada vez, ou use `--quads`/`--celulas` disjuntos.
+- **`site-packages` do usuário fora do `sys.path`** (§2) — o mesmo
+  Python acha um pacote numa sessão e não noutra.
+- **Área geodésica não usa biblioteca**, de propósito: `pyproj` não
+  existe no ambiente do Pro e `geographiclib` sofre do problema acima.
+  As séries do WGS84 no `backfill_gee.py` batem com o geographiclib em
+  0,002% de 200 m² a 1 km².
+- **Sub-bloco sem imagem não é erro.** Quando a memória do GEE obriga a
+  refazer a célula em 4×4, alguns sub-blocos caem fora da faixa da cena
+  e o `mosaic()` volta sem banda. É ausência de imagem, e o script pula.

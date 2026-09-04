@@ -49,10 +49,21 @@ import json
 import math
 import os
 import re
+import site
 import sys
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# O Python do ArcGIS Pro NEM SEMPRE inclui o site-packages do usuário no
+# sys.path: depende de como o terminal foi aberto. Resultado prático —
+# `shapely`, `ee` e companhia carregam numa sessão e somem noutra, com
+# ModuleNotFoundError um de cada vez. Acrescentar o caminho à mão resolve
+# de uma vez, e não atrapalha quando ele já estava lá.
+for _p in {site.getusersitepackages()} if isinstance(
+        site.getusersitepackages(), str) else set(site.getusersitepackages()):
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.append(_p)
 
 import numpy as np
 from PIL import Image
@@ -196,10 +207,15 @@ def area_ha_geodesica(geom):
     return max(0.0, total) / 10000.0
 
 
-from shapely.geometry import (shape, mapping, Polygon as ShPolygon,
-                              MultiPolygon)
-from shapely.ops import unary_union
-from shapely.geometry.polygon import orient
+try:
+    from shapely.geometry import (shape, mapping, Polygon as ShPolygon,
+                                  MultiPolygon)
+    from shapely.ops import unary_union
+    from shapely.geometry.polygon import orient
+except ImportError:
+    raise SystemExit(
+        'Falta a biblioteca shapely. Instale com:\n  "%s" '
+        "-m pip install --user shapely" % sys.executable)
 
 
 def para_rings_esri(geom4326):

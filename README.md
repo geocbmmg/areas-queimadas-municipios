@@ -33,11 +33,15 @@ Roda no navegador e grava tudo no Portal ArcGIS do CBMMG. O histórico
 | **Como montar noutra máquina** | [COMECAR-AQUI.md](COMECAR-AQUI.md) |
 | **Método, fontes e decisões** | [DOCUMENTACAO.md](DOCUMENTACAO.md) |
 
-### Em que pé está?
+### Numa máquina nova
 
 ```
-python infra/30_estado.py
+python infra/00_checar_ambiente.py     # o que falta instalar/configurar
+python infra/30_estado.py              # em que pé está o processamento
 ```
+
+O primeiro diz o que falta e o comando exato para resolver. O segundo lê
+o Portal e mostra o próximo passo.
 
 Lê o Portal e responde: quantas células foram processadas, quantos
 polígonos existem, quanto deu por município, quais meses estão fechados
