@@ -1,43 +1,92 @@
-# Monitor de Queimadas — 8 Municípios
-
-Área queimada, biomassa consumida e emissões (E = A × B × C × EF) nos
-8 municípios do estudo de queimadas 2015–2024:
+# Áreas Queimadas e Emissões — 8 Municípios
 
 Belo Horizonte · Betim · Conceição do Mato Dentro · Congonhas ·
 Contagem · Ipatinga · São José da Lapa · Timóteo
 
-Fork do monitor estadual (`monitor-queimadas-mg`) com o recorte trocado:
-só as células da malha que tocam os 8 municípios, resolução de trabalho
-de **10 m**, consolidação mensal **por município** (interseção geométrica
-com os limites do IBGE) e as tabelas de **B×C** (biomassa) e **EF**
-(fatores de emissão — PM2.5, PM10, TPM, CO, CO₂) já semeadas com fontes.
+Estima as **emissões atmosféricas dos incêndios** a partir da área
+queimada medida por sensoriamento remoto:
 
-Roda no navegador: pede os recortes ao Copernicus, calcula o dNBR,
-vetoriza a cicatriz e grava TUDO no Portal ArcGIS do CBMMG — polígonos,
-controle auditável, consolidado e parâmetros. Ninguém instala nada.
+> **E<sub>i</sub> = A × B × C × EF<sub>i</sub>**
+>
+> área queimada → biomassa disponível → biomassa consumida →
+> fator de emissão → massa de poluente emitida
 
-CBMMG — Centro de Estudos de Bombeiros.
+| termo | de onde vem |
+|---|---|
+| **A** | dNBR do Sentinel-2 a 10 m, contra a passagem anterior viável da mesma célula |
+| **B, C** | classe de uso do solo do **ano do fogo** × tabela de parâmetros por classe |
+| **EF** | fatores por poluente (PM2.5, PM10, TPM, CO, CO₂) — Andreae 2019 e Akagi 2011 |
 
-## Documentação
+Roda no navegador e grava tudo no Portal ArcGIS do CBMMG. O histórico
+(2017–2025) é processado pelo Google Earth Engine, com as mesmas regras.
 
-**[DOCUMENTACAO.md](DOCUMENTACAO.md)** — fontes de dados com links,
-forma de cálculo, scripts, armazenamento, parâmetros e limitações.
-O desenho de fundo (invariantes anti-dupla-contagem, regeneração,
-consolidação) está em `monitor-queimadas-mg/plano/REFORMULACAO.md`.
+**CBMMG — Centro de Estudos de Bombeiros**
+
+---
+
+## Onde está tudo
+
+| | |
+|---|---|
+| **Painel** | https://areas-queimadas-municipios.vercel.app |
+| **Dados** | Portal ArcGIS, item `3809b06eb45348ffb2ae10f1e3a14312` |
+| **Como montar noutra máquina** | [COMECAR-AQUI.md](COMECAR-AQUI.md) |
+| **Método, fontes e decisões** | [DOCUMENTACAO.md](DOCUMENTACAO.md) |
+
+### Em que pé está?
+
+```
+python infra/30_estado.py
+```
+
+Lê o Portal e responde: quantas células foram processadas, quantos
+polígonos existem, quanto deu por município, quais meses estão fechados
+e **qual é o próximo passo**.
+
+---
+
+## O painel
+
+Uma lista de áreas queimadas — filtrável por município, período e área
+mínima. Cada área traz a conta fechada: hectares, uso do solo, biomassa
+consumida e emissões por poluente.
+
+E a pergunta que importa, **queimou mesmo?**, se responde olhando: para
+cada polígono o painel pede um recorte pequeno em volta dele e monta
+quatro imagens — cor verdadeira e falsa cor, **antes e depois** — com o
+contorno desenhado por cima, por cerca de 1 PU. Clicar numa delas joga a
+imagem sobre o mapa, georreferenciada, com controle de opacidade. Se a
+mancha só aparece no depois, queimou; se já estava lá, é estiagem, e se
+exclui ali mesmo.
+
+---
 
 ## Os números do plano
 
-- **13 células-mãe** (= 52 células a 10 m) em **3 quadrantes**
-- **9.918 PU/mês** a 10 m — cabe em 2 militares (cota conservadora de
-  7.000) ou 1 conta (cota real de 30.000)
-- Serviço no Portal: `Hosted/Monitor_Queimadas_Municipios`
-  (item `3809b06eb45348ffb2ae10f1e3a14312`)
+- **52 células** de 25 km (10 m/px) cobrindo os 8 municípios, em 3
+  blocos da malha estadual
+- **3.269 km²** de área municipal
+- **9.918 PU/mês** se rodar tudo ao vivo a 10 m — cabe numa conta
+  gratuita do Copernicus (30.000 PU/mês)
+- Histórico pelo **GEE**: custo zero de PU
 
-## Rodar local
+---
 
-```bash
-python -m http.server 8011 --directory app
+## Estrutura
+
+```
+app/            o painel (roda no navegador, sem build)
+  js/motor/     copernicus, raster, vetor, nuvem, passagem, biomassa, consolida
+  js/           painel, vistas-poligono (as imagens de validação)
+  dados/        malha das células e limites municipais do IBGE
+infra/          criação do serviço no Portal, OAuth, estado
+plano/          malha, tiles de uso do solo, backfill do histórico
 ```
 
-O login do Portal e o do Copernicus exigem que o domínio esteja
-registrado nos redirect URIs (`infra/21_registrar_redirect.py`).
+## Limitação registrada
+
+O critério de detecção é **dNBR ≥ 0,10 puro**, que superdetecta a cura
+do capim na estiagem — no cerrado, entre julho e outubro, vegetação seca
+pode ser lida como cicatriz. A validação visual do painel existe
+exatamente para isso, e o piso de relatório permite subir o corte sem
+reprocessar. Ver DOCUMENTACAO.md §6.
