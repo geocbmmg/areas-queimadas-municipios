@@ -274,10 +274,14 @@
       return "<div><span>" + esc(p[0]) + "</span><b>" + esc(p[1]) + "</b></div>";
     }).join("");
 
+    // troca de área: as vistas da anterior não valem mais
+    vistasDoSel = {};
     $("daVistas").innerHTML = "";
+    $("daSobrepor").classList.add("oculto");
+    if (V.lMidia) definirMidia([]);
     $("btnVistas").disabled = false;
     $("btnVistas").textContent = "Ver imagens (≈" +
-      fmt(VistasPoligono.pu() * 3, 1) + " PU)";
+      fmt(VistasPoligono.pu() * 4, 1) + " PU)";
 
     desenhar(a);
   }
@@ -295,30 +299,88 @@
     V.view.goTo({ target: g.extent.expand(6) }).catch(function () { });
   }
 
+  var vistasDoSel = {};     // qual -> {url, urlLimpa, bbox}
+
   async function verVistas() {
     if (!sel) return;
     var b = $("btnVistas");
     b.disabled = true;
-    var quais = [["antes", "Antes — " + dataBr(sel.__diaRef)],
-                 ["depois", "Depois — " + dataBr(sel.__diaPass)],
-                 ["falsa", "Falsa cor — " + dataBr(sel.__diaPass)]];
+    b.textContent = "gerando…";
+    // matriz 2×2: cor verdadeira em cima, falsa cor embaixo; antes à
+    // esquerda, depois à direita — a leitura vira uma comparação
+    var quais = [
+      ["verdAntes", "Cor verdadeira · antes", dataBr(sel.__diaRef)],
+      ["verdDepois", "Cor verdadeira · depois", dataBr(sel.__diaPass)],
+      ["falsaAntes", "Falsa cor · antes", dataBr(sel.__diaRef)],
+      ["falsaDepois", "Falsa cor · depois", dataBr(sel.__diaPass)]
+    ];
     $("daVistas").innerHTML = quais.map(function (q) {
       return '<figure class="vista"><div class="vista-img" id="v_' + q[0] +
-        '">gerando…</div><figcaption>' + esc(q[1]) + "</figcaption></figure>";
+        '">gerando…</div><figcaption>' + esc(q[1]) +
+        '<br><span class="vista-data">' + esc(q[2]) +
+        "</span></figcaption></figure>";
     }).join("");
     for (var i = 0; i < quais.length; i++) {
       var q = quais[i];
       try {
-        var url = await VistasPoligono.gerar(sel, q[0]);
+        var v = await VistasPoligono.gerar(sel, q[0]);
+        vistasDoSel[q[0]] = v;
         var el = $("v_" + q[0]);
-        if (el) el.innerHTML = '<img src="' + url + '" alt="' + esc(q[1]) + '">';
+        if (el) {
+          el.innerHTML = '<img src="' + v.url + '" alt="' + esc(q[1]) + '">';
+          el.style.cursor = "pointer";
+          el.title = "clique para ver sobre o mapa";
+          el.onclick = (function (qual) {
+            return function () { sobrepor(qual); };
+          })(q[0]);
+        }
       } catch (e) {
         var el2 = $("v_" + q[0]);
         if (el2) el2.textContent = "falhou: " + (e.message || e);
       }
     }
     b.disabled = false;
-    b.textContent = "Regerar imagens";
+    b.textContent = "Imagens geradas";
+    $("daSobrepor").classList.remove("oculto");
+    // a falsa cor DEPOIS é onde a cicatriz salta primeiro
+    sobrepor("falsaDepois");
+  }
+
+  /** Põe (ou tira) uma das vistas SOBRE o mapa, georreferenciada. */
+  function sobrepor(qual) {
+    if (!V.lMidia) return;
+    document.querySelectorAll("#daToggle button").forEach(function (b) {
+      b.classList.toggle("ativa", b.dataset.v === qual);
+    });
+    var v = qual ? vistasDoSel[qual] : null;
+    if (!v) { definirMidia([]); return; }
+
+    var b = v.bbox;
+    var el = new M.ImageElement({
+      image: v.urlLimpa,      // sem o contorno: ele já é camada vetorial
+      georeference: new M.ExtentGeo({
+        extent: new M.Extent({
+          xmin: b[0], ymin: b[1], xmax: b[2], ymax: b[3],
+          spatialReference: { wkid: 3857 }
+        })
+      }),
+      opacity: Number($("daOpacidade").value) / 100
+    });
+    definirMidia([el]);
+    if (sel) desenhar(sel);
+  }
+
+  /* MediaLayer não tem removeAll, e trocar `source` depois de
+     materializado é ignorado em silêncio — mexer em source.elements é o
+     caminho que funciona (cicatriz herdada da Calculadora). */
+  function definirMidia(elementos) {
+    var s = V.lMidia.source;
+    if (s && s.elements) {
+      s.elements.removeAll();
+      if (elementos.length) s.elements.addMany(elementos);
+    } else {
+      V.lMidia.source = elementos;
+    }
   }
 
   /* ---------------- curadoria ---------------- */
@@ -442,10 +504,16 @@
       window.require([
         "esri/Map", "esri/views/MapView", "esri/layers/GeoJSONLayer",
         "esri/layers/GraphicsLayer", "esri/Graphic",
-        "esri/geometry/Polygon", "esri/geometry/geometryEngine"
+        "esri/geometry/Polygon", "esri/geometry/geometryEngine",
+        "esri/layers/MediaLayer", "esri/layers/support/ImageElement",
+        "esri/layers/support/ExtentAndRotationGeoreference",
+        "esri/geometry/Extent"
       ], function (Map, MapView, GeoJSONLayer, GraphicsLayer, Graphic,
-                   Polygon, ge) {
+                   Polygon, ge, MediaLayer, ImageElement, ExtentGeo,
+                   Extent) {
         M.Polygon = Polygon; M.Graphic = Graphic; M.ge = ge;
+        M.ImageElement = ImageElement; M.ExtentGeo = ExtentGeo;
+        M.Extent = Extent;
         Motor.iniciar({ Polygon: Polygon, ge: ge });
         Consolida.iniciar({ Polygon: Polygon, ge: ge });
 
@@ -461,8 +529,10 @@
                       font: { size: 11, weight: "bold" } } }],
           popupEnabled: false
         });
+        V.lMidia = new MediaLayer({ source: [] });
         V.gSel = new GraphicsLayer();
-        V.mapa = new Map({ basemap: "satellite", layers: [V.lMun, V.gSel] });
+        V.mapa = new Map({ basemap: "satellite",
+                           layers: [V.lMidia, V.lMun, V.gSel] });
         V.view = new MapView({
           container: "mapa", map: V.mapa,
           center: [-43.6, -19.6], zoom: 8,
@@ -513,6 +583,15 @@
     $("btnBuscar").addEventListener("click", function () { buscar(true); });
     $("btnMais").addEventListener("click", function () { buscar(false); });
     $("btnVistas").addEventListener("click", verVistas);
+    $("daToggle").addEventListener("click", function (ev) {
+      var b = ev.target.closest("button");
+      if (b) sobrepor(b.dataset.v);
+    });
+    $("daOpacidade").addEventListener("input", function () {
+      if (!V.lMidia || !V.lMidia.source || !V.lMidia.source.elements) return;
+      var o = Number(this.value) / 100;
+      V.lMidia.source.elements.forEach(function (el) { el.opacity = o; });
+    });
     $("btnPrescrita").addEventListener("click", function () { curar("prescrita"); });
     $("btnNaoQueimada").addEventListener("click", function () { curar("excluir"); });
     $("detFechar").addEventListener("click", function () {

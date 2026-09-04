@@ -80,15 +80,38 @@
     });
   }
 
+  /* As quatro vistas: a mesma janela em duas datas e dois realces.
+
+     A comparação que decide é a FALSA COR antes × depois — no
+     infravermelho a cicatriz escurece de forma inequívoca, enquanto no
+     visível ela pode se confundir com sombra de relevo ou solo exposto.
+     A cor verdadeira entra como conferência do que o olho veria. */
+  var VISTAS = {
+    verdAntes:   { data: "ref",  eval: "verdadeira",
+                   rotulo: "Cor verdadeira — antes" },
+    verdDepois:  { data: "pass", eval: "verdadeira",
+                   rotulo: "Cor verdadeira — depois" },
+    falsaAntes:  { data: "ref",  eval: "falsa",
+                   rotulo: "Falsa cor — antes" },
+    falsaDepois: { data: "pass", eval: "falsa",
+                   rotulo: "Falsa cor — depois" }
+  };
+
   /**
-   * Gera uma vista do polígono. `qual` = "antes" | "depois" | "falsa".
-   * Devolve dataURL (com o contorno desenhado).
+   * Gera uma das quatro vistas do polígono.
+   *
+   * Devolve {url, urlLimpa, bbox} — `url` tem o contorno desenhado (bom
+   * para a miniatura) e `urlLimpa` é a imagem crua (melhor para pôr
+   * sobre o mapa, onde o contorno já é desenhado como camada vetorial e
+   * repetir a linha só engrossaria a borda).
    */
   async function gerar(poli, qual) {
+    var v = VISTAS[qual];
+    if (!v) throw new Error("vista desconhecida: " + qual);
     var chave = poli.objectid + "|" + qual;
     if (cache[chave]) return cache[chave];
 
-    var data = qual === "antes" ? poli.__diaRef : poli.__diaPass;
+    var data = v.data === "ref" ? poli.__diaRef : poli.__diaPass;
     if (!data) throw new Error("passagem sem data de base");
     if (!(await Copernicus.tokenValido())) await Copernicus.entrar();
 
@@ -96,8 +119,8 @@
     var blob = await Copernicus.baixarRecorte({
       bbox: jan.bbox, epsg: 3857,
       largura: LADO_PX, altura: LADO_PX, data: data,
-      evalscript: qual === "falsa" ? Copernicus.EVAL_FALSA_COR
-                                   : Copernicus.EVAL_COR_VERDADEIRA,
+      evalscript: v.eval === "falsa" ? Copernicus.EVAL_FALSA_COR
+                                     : Copernicus.EVAL_COR_VERDADEIRA,
       formato: "image/png"
     });
     Pu.somar(LADO_PX * LADO_PX / 262144);
@@ -108,8 +131,8 @@
       fr.readAsDataURL(blob);
     });
     var comLinha = await comContorno(url, poli.__rings, jan);
-    cache[chave] = comLinha;
-    return comLinha;
+    cache[chave] = { url: comLinha, urlLimpa: url, bbox: jan.bbox };
+    return cache[chave];
   }
 
   /** PU de uma vista — para avisar antes de gastar. */
@@ -117,5 +140,6 @@
     return Math.round(LADO_PX * LADO_PX / 262144 * 100) / 100;
   }
 
-  glob.VistasPoligono = { gerar: gerar, pu: pu, janelaDe: janelaDe };
+  glob.VistasPoligono = { gerar: gerar, pu: pu, janelaDe: janelaDe,
+                          VISTAS: VISTAS };
 })(window);

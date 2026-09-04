@@ -90,8 +90,23 @@
       depois, queimou. Se já estava lá, é estiagem, sombra ou solo exposto.
       O contorno amarelo é o polígono calculado.
     </p>
-    <div class="da-vistas" id="daVistas"></div>
     <button class="btn btn-primario" id="btnVistas">Ver imagens (≈0,8 PU)</button>
+    <div class="da-vistas" id="daVistas"></div>
+
+    <div class="da-sobrepor oculto" id="daSobrepor">
+      <p class="det-dica">Clique numa imagem para vê-la <b>sobre o mapa</b>,
+        no tamanho grande.</p>
+      <div class="da-toggle" id="daToggle">
+        <button data-v="falsaAntes">Falsa · antes</button>
+        <button data-v="falsaDepois">Falsa · depois</button>
+        <button data-v="verdAntes">Real · antes</button>
+        <button data-v="verdDepois">Real · depois</button>
+        <button data-v="">Só o satélite</button>
+      </div>
+      <label class="da-opac">Opacidade
+        <input type="range" id="daOpacidade" min="20" max="100" value="100">
+      </label>
+    </div>
 
     <h3>Curadoria</h3>
     <div class="det-acoes-col">

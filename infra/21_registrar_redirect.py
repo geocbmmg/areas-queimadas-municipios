@@ -55,11 +55,25 @@ def main():
         print("[NADA A FAZER] todos já registrados")
         return
 
-    r = portal.con.post(
-        "content/users/%s/items/%s/registeredAppInfo/update"
-        % (info.get("owner", gis.users.me.username), info.get("itemId", APP_ID)),
-        {"f": "json", "redirect_uris": json.dumps(final)}, ssl=True)
-    print("resposta:", r)
+    # O endpoint que FUNCIONA neste Portal é oauth2/apps/<client_id>/update.
+    # O caminho content/users/<dono>/items/<itemId>/registeredAppInfo/update
+    # responde 200 devolvendo os dados do app e NÃO grava nada — silêncio
+    # que já custou um "por que o login não volta?".
+    item_id = info.get("itemId", APP_ID)
+    gis._con.post(
+        gis.url + "/sharing/rest/oauth2/apps/%s/update" % APP_ID,
+        {"f": "json", "redirect_uris": json.dumps(final)})
+
+    # confere na fonte, não na resposta (que não é prova de gravação);
+    # e nunca imprime a resposta inteira: ela traz o client_secret do app
+    item = gis.content.get(item_id)
+    gravados = (item.app_info.get("redirect_uris") if item else []) or []
+    faltando = [u for u in final if u not in gravados]
+    print("registrados agora: %d URIs" % len(gravados))
+    for u in novos:
+        print("   %s %s" % ("OK  " if u in gravados else "NÃO ", u))
+    if faltando:
+        raise SystemExit("não gravou: %s" % ", ".join(faltando[:5]))
 
 
 main()
