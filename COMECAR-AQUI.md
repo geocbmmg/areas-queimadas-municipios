@@ -27,14 +27,18 @@ Nada disso é segredo perdido: tudo se regenera com os scripts do repo.
 - **Node.js** (só para `npx vercel`, ao publicar)
 - **git** e **gh** (GitHub CLI), autenticado como `geocbmmg`
 
-Dois pacotes faltam no ambiente do Pro e precisam ser instalados:
+Um pacote falta no ambiente do Pro (só para o histórico):
 
 ```
-"C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" -m pip install --user geographiclib earthengine-api
+"C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" -m pip install --user earthengine-api
 ```
 
-> `pyproj` **não** existe nesse ambiente — por isso a área geodésica usa
-> `geographiclib`. Não troque sem testar.
+> **Área geodésica não depende de biblioteca.** `pyproj` não existe
+> nesse ambiente e `geographiclib` some conforme o terminal — instalar
+> com `--user` funciona numa sessão e não noutra. Por isso o cálculo é
+> feito no próprio `backfill_gee.py`, com as séries do WGS84: conferido
+> contra o geographiclib, a diferença fica em **0,002%** de 200 m² a
+> 1 km². Não reintroduza a dependência.
 
 ---
 

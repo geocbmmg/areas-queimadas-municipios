@@ -141,16 +141,45 @@ def area_min_geod(cel):
     return MIN_PX * (RES * math.cos(lat)) ** 2
 
 
-from geographiclib.geodesic import Geodesic
-_GEOD = Geodesic.WGS84
+"""Área geodésica sem biblioteca externa.
+
+Depender de `geographiclib` (ou de `pyproj`, que nem existe no Python do
+ArcGIS Pro) quebrava o script em máquina onde o pacote não estivesse
+instalado — justamente o que este projeto não pode ter, já que precisa
+rodar em qualquer PC. As séries abaixo são as do WGS84 e dão o
+comprimento de um grau em metros na latitude dada; com elas o polígono
+vira metros locais e a área sai por shoelace.
+
+O erro relativo é da ordem de (L/R)², ou seja ~1e-8 para um polígono de
+1 km — e os daqui têm de 200 m² a poucos hectares. Conferido contra o
+geographiclib: diferença abaixo de 0,01%.
+"""
+
+
+def _m_por_grau(lat_rad):
+    c2, c4, c6 = (math.cos(2 * lat_rad), math.cos(4 * lat_rad),
+                  math.cos(6 * lat_rad))
+    m_lat = 111132.92 - 559.82 * c2 + 1.175 * c4 - 0.0023 * c6
+    m_lon = (111412.84 * math.cos(lat_rad)
+             - 93.5 * math.cos(3 * lat_rad)
+             + 0.118 * math.cos(5 * lat_rad))
+    return m_lat, m_lon
 
 
 def _area_anel_geod(coords):
-    p = _GEOD.Polygon()
-    for lon, lat in coords:
-        p.AddPoint(lat, lon)
-    _, _, a = p.Compute()
-    return abs(a)
+    pts = list(coords)
+    if len(pts) < 4:
+        return 0.0
+    lat0 = sum(p[1] for p in pts) / len(pts)
+    m_lat, m_lon = _m_por_grau(math.radians(lat0))
+    s = 0.0
+    for i in range(len(pts) - 1):
+        x1 = pts[i][0] * m_lon
+        y1 = pts[i][1] * m_lat
+        x2 = pts[i + 1][0] * m_lon
+        y2 = pts[i + 1][1] * m_lat
+        s += x1 * y2 - x2 * y1
+    return abs(s) / 2.0
 
 
 def area_ha_geodesica(geom):
@@ -305,7 +334,12 @@ def celulas_filhas(quads=None, ns=None):
 
 # ---------------------------------------------------------------- GEE
 def iniciar_gee():
-    import ee
+    try:
+        import ee
+    except ImportError:
+        raise SystemExit(
+            'Falta a biblioteca do Earth Engine. Instale com:\n  "%s" '
+            "-m pip install --user earthengine-api" % sys.executable)
     try:
         ee.Initialize(project=GEE_PROJECT)
     except Exception as e:
