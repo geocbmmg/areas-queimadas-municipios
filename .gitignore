@@ -10,3 +10,6 @@ infra/backup/
 # de lá, não do repositório
 plano/tiles/
 plano/backfill_log.txt
+
+.vercel
+.env*

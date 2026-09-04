@@ -1,9 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-
-  "//": "O site mora em app/ — o resto do repositório é infraestrutura e scripts. Sem esta linha, o deploy automático do GitHub serve a RAIZ, onde não há index.html, e o endereço responde 404.",
   "outputDirectory": "app",
-
   "headers": [
     {
       "source": "/(.*)",
