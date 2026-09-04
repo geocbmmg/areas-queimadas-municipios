@@ -1,0 +1,50 @@
+Areas queimadas e emissoes nos 8 municipios do estudo
+
+Fork do monitor estadual com o recorte trocado para os municipios do
+estudo de area queimada: Belo Horizonte, Betim, Conceicao do Mato
+Dentro, Congonhas, Contagem, Ipatinga, Sao Jose da Lapa e Timoteo.
+
+O objetivo nao e so mapear a cicatriz, e fechar a conta:
+
+    E = A x B x C x EF
+
+  A  area queimada por dNBR do Sentinel-2 a 10 m, medida contra a
+     passagem anterior VIAVEL da mesma celula (a primeira e a base e
+     nao produz area). Componente minimo de 2 px; area geodesica.
+  B  carga de biomassa por classe de uso do solo, do tile do ANO do
+     fogo (MapBiomas 30 m com desempate Sentinel-2 10 m nas classes
+     genericas, para nao sobrar "mosaico" sem parametro).
+  C  fracao consumida, por classe.
+  EF fatores de emissao por poluente (PM2.5, PM10, TPM, CO, CO2),
+     lidos das fontes primarias: Andreae 2019 e Akagi 2011.
+
+Tudo o que o motor produz fica no Portal ArcGIS do CBMMG: poligonos,
+controle auditavel por passagem, detalhamento por classe, parametros
+editaveis e o consolidado mensal por municipio.
+
+Duas decisoes que definem o numero:
+
+  RECORTE MUNICIPAL NA GRAVACAO. As celulas sao retangulos que somam
+  ~32.500 km2 contra 3.269 km2 dos municipios: o que cai 100% fora nao
+  e gravado, e o que cruza a divisa e RECORTADO e vira uma linha por
+  municipio. Assim a area de cada municipio e a area que esta dentro
+  dele, e a soma fecha.
+
+  DOIS PISOS DE AREA. Grava-se no mais fino (200 m2 = 2 px) e relata-se
+  no piso que se quiser: como cada poligono guarda area e n_pixels,
+  mudar o corte e um filtro de consulta, nao uma reconsulta de 9 anos
+  ao Earth Engine.
+
+A validacao e visual e barata: para cada poligono o painel pede um
+recorte pequeno em volta dele e monta ANTES / DEPOIS / FALSA COR com o
+contorno desenhado por cima, por ~0,8 PU. Se a mancha so aparece no
+depois, queimou; se ja estava la, e estiagem e se exclui na hora.
+
+Limitacao registrada: o criterio de deteccao e dNBR >= 0,10 puro, que
+superdetecta a cura do capim na estiagem. A curadoria visual existe
+para isso.
+
+Historico 2017-2025 pela rota Google Earth Engine (custo zero de
+Processing Units), com as mesmas regras do monitor vivo.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>

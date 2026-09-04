@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Copernicus — concluindo…</title>
+<style>
+  body { font: 14px "Segoe UI", system-ui, sans-serif; background: #14181d; color: #e8ecf1;
+         display: flex; align-items: center; justify-content: center; height: 100vh;
+         margin: 0; text-align: center; padding: 24px; }
+  b { color: #ff7a45; }
+</style>
+</head>
+<body>
+<p id="msg">Concluindo o login no Copernicus…</p>
+<script>
+/*
+  Retorno do fluxo authorization code + PKCE do Copernicus Data Space.
+
+  Aqui chega só o `code` (na query string). Quem troca o código por token
+  é a janela do app, que guarda o verificador PKCE — assim o código
+  sozinho não vale nada se vazar.
+*/
+(function () {
+  var dados = {};
+  location.search.replace(/^\?/, "").split("&").forEach(function (par) {
+    if (!par) return;
+    var i = par.indexOf("=");
+    if (i < 0) return;
+    dados[decodeURIComponent(par.slice(0, i))] =
+      decodeURIComponent(par.slice(i + 1).replace(/\+/g, " "));
+  });
+
+  var msg = document.getElementById("msg");
+  if (dados.error) {
+    msg.innerHTML = "<b>Login não concluído.</b><br>" +
+      (dados.error_description || dados.error) + "<br><br>Pode fechar esta janela.";
+  } else if (!dados.code) {
+    msg.innerHTML = "<b>Retorno inesperado do Copernicus.</b><br>Pode fechar esta janela.";
+  }
+
+  var pacote = { tipo: "copernicus-oauth", dados: dados };
+
+  // três canais, porque o opener nem sempre sobrevive à página de login
+  try {
+    var bc = new BroadcastChannel("copernicus-oauth");
+    bc.postMessage(pacote);
+    bc.close();
+  } catch (e) {}
+  try {
+    localStorage.setItem("copernicus-oauth-retorno",
+      JSON.stringify({ t: Date.now(), dados: dados }));
+  } catch (e) {}
+  try {
+    if (window.opener && window.opener !== window) {
+      window.opener.postMessage(pacote, location.origin);
+    }
+  } catch (e) {}
+
+  if (dados.code) {
+    msg.textContent = "Autenticado! Fechando…";
+    setTimeout(function () { window.close(); }, 300);
+    setTimeout(function () {
+      msg.innerHTML = "Autenticado! Pode fechar esta janela e voltar à calculadora.";
+    }, 1500);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+.vercel/
+.env
+.env.local
+*.log
+__pycache__/
+infra/backup/
+
+# tiles de uso do solo (364 PNGs, ~50 MB): são gerados por
+# plano/gerar_lulc_tiles.py e vivem como anexos no Portal — o app os lê
+# de lá, não do repositório
+plano/tiles/
+plano/backfill_log.txt

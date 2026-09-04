@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Áreas Queimadas — 8 Municípios</title>
+<link rel="stylesheet" href="css/painel.css?v=2.0.0">
+<script src="js/config.js?v=2.0.0"></script>
+</head>
+<body>
+
+<header class="topo">
+  <div class="marca">
+    <img class="logo" src="img/logo-cbmmg.png" alt="CBMMG">
+    <div>
+      <h1>Áreas Queimadas — 8 Municípios</h1>
+      <p>Sentinel-2 · área queimada, biomassa consumida e emissões · CBMMG — CEB</p>
+    </div>
+  </div>
+  <div class="topo-acoes">
+    <span id="puChip" class="pill" title="consumo Copernicus no mês">0 PU</span>
+    <span id="copStatus" class="pill">Copernicus: não conectado</span>
+    <button id="btnEntrar" class="btn btn-primario">Entrar</button>
+    <div id="perfil" class="perfil oculto">
+      <button id="perfilBotao" class="perfil-botao">
+        <span id="perfilAvatar" class="perfil-avatar">?</span>
+        <span id="perfilNome" class="perfil-nome"></span>
+        <span class="perfil-seta">▾</span>
+      </button>
+      <div id="perfilMenu" class="perfil-menu oculto">
+        <button id="btnSair" class="pm-item">Sair</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="filtros">
+  <label>Município
+    <select id="fMunicipio"><option value="">todos</option></select>
+  </label>
+  <label>De
+    <input type="month" id="fDe">
+  </label>
+  <label>Até
+    <input type="month" id="fAte">
+  </label>
+  <label>Área mínima
+    <select id="fPiso">
+      <option value="0">tudo (2 px · 200 m²)</option>
+      <option value="400">400 m² · 1 pixel de SWIR</option>
+      <option value="1000">1.000 m²</option>
+      <option value="5000">0,5 ha</option>
+      <option value="10000" selected>1 ha</option>
+      <option value="100000">10 ha</option>
+    </select>
+  </label>
+  <label>Ordenar
+    <select id="fOrdem">
+      <option value="area_ha DESC">maior área</option>
+      <option value="data_pass DESC">mais recente</option>
+      <option value="dnbr_med DESC">maior dNBR</option>
+    </select>
+  </label>
+  <button class="btn btn-primario" id="btnBuscar">Buscar</button>
+  <span class="filtros-resumo" id="resumoBusca"></span>
+</div>
+
+<main class="corpo">
+  <aside class="lista-areas">
+    <div class="lista-topo" id="listaTopo">Entre no Portal para carregar as áreas queimadas.</div>
+    <div id="listaAreas"></div>
+    <button class="btn btn-mini oculto" id="btnMais">Carregar mais</button>
+  </aside>
+
+  <section class="mapa-area">
+    <div id="mapa"></div>
+    <div class="legenda-mapa" id="legendaMapa"></div>
+  </section>
+
+  <aside class="detalhe-area oculto" id="detArea">
+    <button class="fechar" id="detFechar">×</button>
+    <h2 id="daTitulo">—</h2>
+    <p class="det-sub" id="daSub"></p>
+
+    <div class="da-grid" id="daGrid"></div>
+
+    <h3>Queimou mesmo?</h3>
+    <p class="det-dica" id="daDicaVistas">
+      Compare o <b>antes</b> com o <b>depois</b>: se a mancha só aparece
+      depois, queimou. Se já estava lá, é estiagem, sombra ou solo exposto.
+      O contorno amarelo é o polígono calculado.
+    </p>
+    <div class="da-vistas" id="daVistas"></div>
+    <button class="btn btn-primario" id="btnVistas">Ver imagens (≈0,8 PU)</button>
+
+    <h3>Curadoria</h3>
+    <div class="det-acoes-col">
+      <button class="btn" id="btnPrescrita">Marcar como queima prescrita</button>
+      <button class="btn btn-perigo" id="btnNaoQueimada">Não é queimada — excluir</button>
+    </div>
+    <p class="mp-dica">Excluir remove o polígono e o detalhamento por classe;
+      a área sai da conta na próxima consolidação do mês.</p>
+  </aside>
+</main>
+
+<section class="mensal" id="mensal">
+  <div class="mensal-linha">
+    <h3>Consolidado mensal</h3>
+    <input type="month" id="mesConsolidado">
+    <button class="btn" id="btnVerMes">Ver</button>
+    <button class="btn btn-primario" id="btnConsolidar">Consolidar mês</button>
+    <span class="mensal-status" id="mensalStatus"></span>
+  </div>
+  <div id="mensalLinhas"></div>
+</section>
+
+<!-- ============ acesso ao Copernicus ============ -->
+<div class="modal oculto" id="modalCop">
+  <div class="modal-caixa modal-estreito">
+    <header class="modal-topo">
+      <div>
+        <h2>Acesso ao Copernicus</h2>
+        <p>necessário para baixar as imagens do Sentinel-2</p>
+      </div>
+      <button class="fechar" id="copFechar" title="Fechar (Esc)">×</button>
+    </header>
+    <div class="modal-corpo-simples">
+      <p class="det-dica" id="copEstado"></p>
+
+      <h3>Credencial de cliente OAuth</h3>
+      <p class="det-dica">
+        Criada em <b>dataspace.copernicus.eu</b> → seu perfil →
+        <b>Sentinel Hub</b> → <b>User settings</b> → <b>OAuth clients</b> →
+        <i>Create</i>. É o caminho documentado para a Process API e não
+        expira a cada sessão.
+      </p>
+      <label class="campo">Client ID
+        <input type="text" id="copId" autocomplete="off" spellcheck="false"
+               placeholder="sh-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+      </label>
+      <label class="campo">Client secret
+        <input type="password" id="copSegredo" autocomplete="off"
+               spellcheck="false" placeholder="cole aqui o segredo">
+      </label>
+      <label class="campo-inline">
+        <input type="checkbox" id="copMostrar"> mostrar o segredo
+      </label>
+      <p class="det-dica aviso-guarda">
+        Fica guardado no <b>armazenamento local deste navegador</b>, nesta
+        máquina — não é enviado para nenhum servidor nosso. Em computador
+        compartilhado, use "Esquecer credencial" ao terminar.
+      </p>
+      <div class="det-acoes-col">
+        <button class="btn btn-primario" id="copSalvar">Salvar e conectar</button>
+        <button class="btn" id="copEsquecer">Esquecer credencial</button>
+      </div>
+
+      <h3>Ou entrar com a sua conta</h3>
+      <p class="det-dica">
+        Abre a página oficial do Copernicus; a senha é digitada lá, não
+        aqui. A sessão expira e precisa ser refeita de tempos em tempos.
+      </p>
+      <div class="det-acoes-col">
+        <button class="btn" id="copLogin">Entrar com minha conta</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="rodape">
+  <p class="premissas" id="premissas"></p>
+</footer>
+
+<script src="js/pu.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="vendor/geotiff.min.js?v=2.0.0"></script>
+<script src="js/motor/geo.js?v=2.0.0"></script>
+<script src="js/motor/raster.js?v=2.0.0"></script>
+<script src="js/motor/vetor.js?v=2.0.0"></script>
+<script src="js/motor/nuvem.js?v=2.0.0"></script>
+<script src="js/motor/copernicus.js?v=2.0.0"></script>
+<script src="js/motor/passagem.js?v=2.0.0"></script>
+<script src="js/motor/biomassa.js?v=2.0.0"></script>
+<script src="js/motor/consolida.js?v=2.0.0"></script>
+<script src="js/vistas-poligono.js?v=2.0.0"></script>
+<script src="js/painel.js?v=2.0.0"></script>
+</body>
+</html>
