@@ -588,7 +588,18 @@ def tile_da_celula(cel, ano):
     caminho = os.path.join(AQUI, "tiles", str(ano_t),
                            "lulc_%d_%s_c%d.png"
                            % (ano_t, cel["quad"], cel["n"]))
-    arr = np.array(Image.open(caminho)) if os.path.exists(caminho) else None
+    if not os.path.exists(caminho):
+        # Sem tile não há classe, sem classe não há biomassa nem emissão:
+        # o polígono seria gravado com área e nada mais. Isso já aconteceu
+        # em silêncio quando os IDs de quadrante viraram absolutos e os
+        # PNGs no disco ficaram com os nomes antigos — 824 polígonos sem
+        # uma única linha de classe. Falhar alto é mais barato.
+        raise SystemExit(
+            "tile de uso do solo ausente: %s\n"
+            "  rode:  py.cmd plano/gerar_lulc_tiles.py %d\n"
+            "  (se os IDs de quadrante mudaram, os PNGs no disco podem "
+            "estar com os nomes antigos)" % (caminho, ano_t))
+    arr = np.array(Image.open(caminho))
     _TILES[k] = arr
     return arr
 
