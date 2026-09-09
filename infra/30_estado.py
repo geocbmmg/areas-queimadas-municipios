@@ -105,6 +105,25 @@ def main():
                   % (a["mun_nome"] or "(sem municipio)",
                      n(a["a"] or 0), n(a["n"])))
 
+    # INTEGRIDADE: o controle registra a área de cada passagem; os
+    # polígonos são gravados ANTES dele. Processo morto no meio (Ctrl+C,
+    # queda) deixa polígonos sem controle — e o painel, que soma os
+    # polígonos, mostra área fantasma. Comparar as duas somas custa duas
+    # consultas e denuncia o problema na hora.
+    area_ctrl = tabs["Controle de passagens"].query(
+        where="1=1", out_statistics=[
+            {"statisticType": "sum", "onStatisticField": "area_ha",
+             "outStatisticFieldName": "a"}]).features[0].attributes["a"] or 0
+    dif = (st["a"] or 0) - area_ctrl
+    print("\nINTEGRIDADE")
+    print("  area no controle: %s ha · nos poligonos: %s ha"
+          % (n(area_ctrl), n(st["a"] or 0)))
+    if abs(dif) > max(1.0, 0.01 * area_ctrl):
+        print("  ATENCAO: diferenca de %s ha — ha poligonos ORFAOS" % n(dif))
+        print("           veja com:  python infra/31_orfaos.py")
+    else:
+        print("  ok — polígonos e controle batem")
+
     print("\nCONSOLIDADO MENSAL")
     cons = tabs["Consolidado mensal"].query(
         where="1=1", out_fields="competencia", return_geometry=False).features

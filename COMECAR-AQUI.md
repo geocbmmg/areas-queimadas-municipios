@@ -239,6 +239,15 @@ Estão detalhadas na DOCUMENTACAO.md, mas as que mais mordem:
   Sempre conferir `addResults`/`updateResults`/`deleteResults`.
 - **Duas rodadas do backfill na mesma célula** duplicam linhas de
   controle. Rode uma de cada vez, ou use `--quads`/`--celulas` disjuntos.
+- **Matar o backfill deixa polígonos órfãos.** Os polígonos são gravados
+  antes da linha de controle; se o processo morrer entre os dois passos
+  (Ctrl+C, `Stop-Process`, queda), os polígonos ficam sem controle e o
+  painel soma **área fantasma** — num caso real, 9.932 polígonos e
+  4.755 ha, que faziam Congonhas parecer 4,8× a referência do MapBiomas
+  quando na verdade estava em 1,16×. O `30_estado.py` compara as duas
+  somas e denuncia; `31_orfaos.py --apagar` limpa. Rodar o backfill de
+  novo também conserta (a passagem volta à fila e a higiene apaga os
+  órfãos antes de recalcular).
 - **`site-packages` do usuário fora do `sys.path`** (§2) — o mesmo
   Python acha um pacote numa sessão e não noutra.
 - **Área geodésica não usa biblioteca**, de propósito: `pyproj` não
