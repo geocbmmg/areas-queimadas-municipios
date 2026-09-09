@@ -223,6 +223,24 @@
     return areaHa * p.b * p.c;
   }
 
+  /** A classe queima?  B×C = 0 significa que não há combustível: água,
+      área urbanizada, mineração, praia e outras não vegetadas.
+
+      Isso não é firula de relatório. O dNBR confunde variação de nível
+      de reservatório e reflexo especular com cicatriz de fogo: num
+      teste em Paracatu, 70 dos 106 ha detectados caíram em "Rio, Lago e
+      Oceano" — 66% da área. A biomassa já saía zero, então nunca houve
+      emissão fantasma, mas a ÁREA QUEIMADA vinha inflada.
+
+      O critério sai dos próprios parâmetros, não de uma lista fixa:
+      quem editar B ou C na tela de Metodologia muda o que conta como
+      área queimada, sem tocar em código nem reprocessar imagem. */
+  function classeQueima(classeId) {
+    var p = _param && _param[classeId];
+    if (!p || p.b == null || p.c == null) return true;  // sem parâmetro: conta
+    return (p.b * p.c) > 0;
+  }
+
   /** EF (g/kg) do poluente para a classe, com o geral como fallback */
   function efDe(poluente, classeId) {
     if (!_ef) return null;
@@ -324,6 +342,12 @@
     var emissTotal = {};       // poluente -> t (soma dos municípios)
     var bioTotal = 0, temBio = false;
 
+    /* Área que caiu em classe sem combustível (B×C = 0) — água, urbano,
+       mineração, praia, outras não vegetadas. Sai do total de área
+       queimada e é reportada em linha própria, para o desconto ficar
+       auditável em vez de silencioso. */
+    var naoQueimaPorMun = {}, naoQueimaTotal = 0, naoQueimaN = 0;
+
     brutos.forEach(function (g) {
       var cid = g.classe_id, a = g.soma_area || 0;
       if (cid == null) return;
@@ -331,6 +355,16 @@
                                                     temBio: false, n: 0 });
       c.area += a;
       c.n += g.n || 0;
+
+      if (!classeQueima(cid)) {
+        naoQueimaTotal += a;
+        naoQueimaN += g.n || 0;
+        if (g.municipio) {
+          naoQueimaPorMun[g.municipio] =
+            (naoQueimaPorMun[g.municipio] || 0) + a;
+        }
+        return;                         // não gera biomassa nem emissão
+      }
 
       var bio = biomassaDe(a, cid);
       if (bio == null) return;          // classe sem B/C definidos
@@ -376,21 +410,43 @@
 
     var nMun = (plano.premissas.municipios || []).length || 9;
     var adds = [linha("municipios", "TODOS", nMun + " municípios (soma)", {
-      soma_area: mun.totalDentro, n: mun.nDentro,
+      soma_area: Math.max(0, mun.totalDentro - naoQueimaTotal),
+      n: mun.nDentro,
       soma_bio: temBio ? bioTotal : null
     })];
     mun.municipios.forEach(function (a) {
       adds.push(linha("municipio", a.codigo, a.nome, {
-        soma_area: a.area, n: a.n,
+        soma_area: Math.max(0, a.area - (naoQueimaPorMun[a.codigo] || 0)),
+        n: a.n,
         soma_bio: bioPorMun[a.codigo] != null ? bioPorMun[a.codigo] : null
       }));
     });
+    // o desconto fica visível: quem quiser a área bruta soma esta linha
+    if (naoQueimaTotal > 0) {
+      adds.push(linha("nao_combustivel", "NAOCOMB",
+        "Descontado — classes sem combustível (B×C = 0)",
+        { soma_area: naoQueimaTotal, n: naoQueimaN, soma_bio: null }));
+    }
     // não há mais linha "FORA": o que cai 100% fora dos 9 Municípios não
     // chega a ser gravado (o recorte municipal é feito na gravação), e o
     // que cruza a divisa já entra recortado no município certo.
+    // o mesmo desconto por quadrante — vem da tabela de classes, que é
+    // onde a informação de classe existe
+    var naoQueimaPorQuad = {};
+    (await estat(CFG.tabelaQueimadaClasse, whBase, "quad_id,classe_id"))
+      .forEach(function (g) {
+        if (g.classe_id == null || g.quad_id == null) return;
+        if (classeQueima(g.classe_id)) return;
+        naoQueimaPorQuad[g.quad_id] =
+          (naoQueimaPorQuad[g.quad_id] || 0) + (g.soma_area || 0);
+      });
     quads.forEach(function (g) {
       if (!g.quad_id) return;
-      adds.push(linha("quadrante", g.quad_id, "Quadrante " + g.quad_id, g));
+      adds.push(linha("quadrante", g.quad_id, "Quadrante " + g.quad_id, {
+        soma_area: Math.max(0, (g.soma_area || 0) -
+                               (naoQueimaPorQuad[g.quad_id] || 0)),
+        n: g.n, soma_bio: g.soma_bio
+      }));
     });
     for (var cid2 in porClasse) {
       var c2 = porClasse[cid2];
@@ -490,7 +546,7 @@
     // para o painel refletir na hora, sem recarregar a página
     carregarMetodologia: carregarMetodologia,
     recarregarMetodologia: function () { _param = null; _ef = null; },
-    biomassaDe: biomassaDe, efDe: efDe,
+    biomassaDe: biomassaDe, efDe: efDe, classeQueima: classeQueima,
     parametros: function () { return _param; },
     poluentes: function () { return _ef ? _ef.poluentes : {}; }
   };

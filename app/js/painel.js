@@ -251,13 +251,17 @@
     }
     var par = Consolida.parametros() || {};
     var itens = [], bioTotal = 0, temBio = false, emiss = {};
+    var areaQueimada = 0, areaDescartada = 0;
     linhas.forEach(function (l) {
       var p = par[l.classe_id] || {};
+      var queima = Consolida.classeQueima(l.classe_id);
       var bio = Consolida.biomassaDe(l.area_ha || 0, l.classe_id);
       if (bio != null) { bioTotal += bio; temBio = true; }
+      if (queima) areaQueimada += l.area_ha || 0;
+      else areaDescartada += l.area_ha || 0;
       itens.push({ classe: l.classe_id, nome: nomesClasse[l.classe_id],
                    area: l.area_ha || 0, px: l.n_pixels_classe,
-                   b: p.b, c: p.c, bio: bio });
+                   b: p.b, c: p.c, bio: bio, queima: queima });
       if (bio == null) return;
       for (var pol in Consolida.poluentes()) {
         var ef = Consolida.efDe(pol, l.classe_id);
@@ -265,7 +269,8 @@
         emiss[pol] = (emiss[pol] || 0) + bio * ef;   // t × g/kg = kg
       }
     });
-    return { itens: itens, biomassa: temBio ? bioTotal : null, emiss: emiss };
+    return { itens: itens, biomassa: temBio ? bioTotal : null, emiss: emiss,
+             areaQueimada: areaQueimada, areaDescartada: areaDescartada };
   }
 
   /* ---------------- busca ---------------- */
@@ -384,12 +389,23 @@
       r.itens.sort(function (x, y) { return y.area - x.area; });
       r.itens.forEach(function (i) {
         var bc = (i.b != null && i.c != null) ? i.b * i.c : null;
-        h += "<tr><td>" + esc(i.nome || ("classe " + i.classe)) + "</td>" +
+        h += '<tr' + (i.queima ? "" : ' class="classe-nao-queima"') +
+          "><td>" + esc(i.nome || ("classe " + i.classe)) +
+          (i.queima ? "" : ' <span class="tag-nc" title="B×C = 0: não há ' +
+            'combustível. Fica fora da área queimada.">não queima</span>') +
+          "</td>" +
           "<td>" + fmt(i.area, 3) + "</td>" +
           "<td>" + (bc != null ? fmt(bc, 2) : "<i>sem parâmetro</i>") + "</td>" +
           "<td>" + (i.bio != null ? fmt(i.bio, 2) : "—") + "</td></tr>";
       });
       h += "</table>";
+      if (r.areaDescartada > 0) {
+        h += '<div class="conta-desconto">área queimada <b>' +
+          fmt(r.areaQueimada, 3) + " ha</b> — descontados " +
+          fmt(r.areaDescartada, 3) + " ha em classes sem combustível " +
+          "(água, urbano, mineração, solo exposto), onde o dNBR costuma " +
+          "confundir variação de nível e reflexo com cicatriz.</div>";
+      }
       h += '<div class="conta-total">biomassa consumida: <b>' +
         (r.biomassa != null ? fmt(r.biomassa, 2) + " t" : "—") + "</b></div>";
 

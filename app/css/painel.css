@@ -515,3 +515,19 @@ body { display: flex; flex-direction: column; }
    área — ela é o "antes" contra o qual as seguintes são medidas. */
 .chip.base { background: #eef4ff; border-color: #b9ccf0; color: #2b4f96; }
 .lc.base { background: #eef4ff; border-color: #b9ccf0; }
+
+/* classe que nao queima (B x C = 0): agua, urbano, mineracao, solo
+   exposto. O dNBR confunde variacao de nivel de reservatorio e reflexo
+   especular com cicatriz; a area vai para fora do total. */
+.tab-conta tr.classe-nao-queima { opacity: .62; }
+.tab-conta tr.classe-nao-queima td:first-child { font-style: italic; }
+.tag-nc {
+  font-size: 11px; font-style: normal; padding: 1px 5px;
+  border-radius: 3px; background: #dfe6ee; color: #44566b;
+  white-space: nowrap;
+}
+.conta-desconto {
+  margin: 6px 0; padding: 7px 9px; border-radius: 4px;
+  background: #f2f6fa; border-left: 3px solid #7b98b5;
+  font-size: 12px; line-height: 1.45; color: #33495e;
+}
