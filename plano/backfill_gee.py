@@ -32,13 +32,17 @@ FONTES DE IMAGEM (a diferença que o catálogo impõe):
 Parâmetros de cálculo lidos do app/js/config.js — nunca divergem do vivo.
 Custo Copernicus: ZERO.
 
-Uso:
-  python backfill_gee.py                       # tudo (52 células, 2017-03-28..2025-12-31)
-  python backfill_gee.py --quads A2 --celulas 17,18
-  python backfill_gee.py --ate 2017-12-31      # piloto
-  python backfill_gee.py --paralelo 4          # células em paralelo
+Uso (SEMPRE por py.cmd — o `python` do PATH é outro interpretador):
+  py.cmd plano/backfill_gee.py                 # tudo (92 células, 2017-03-28..2025-12-31)
+  py.cmd plano/backfill_gee.py "--quads=-20_-9" --celulas 17,18
+  py.cmd plano/backfill_gee.py --ate 2017-12-31   # piloto
+  py.cmd plano/backfill_gee.py --paralelo 4       # células em paralelo
 
-Autenticação GEE (uma vez):  python -c "import ee; ee.Authenticate()"
+Os IDs de quadrante começam com "-" (são absolutos na grade), então
+--quads precisa da forma "--quads=-20_-9": sem o "=" o argparse lê o
+valor como se fosse outra opção.
+
+Autenticação GEE (uma vez):  py.cmd -c "import ee; ee.Authenticate()"
 Projeto GEE: incendioflorestalmg (login leandrogomesbh).
 """
 import argparse
@@ -55,11 +59,12 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# O Python do ArcGIS Pro NEM SEMPRE inclui o site-packages do usuário no
-# sys.path: depende de como o terminal foi aberto. Resultado prático —
-# `shapely`, `ee` e companhia carregam numa sessão e somem noutra, com
-# ModuleNotFoundError um de cada vez. Acrescentar o caminho à mão resolve
-# de uma vez, e não atrapalha quando ele já estava lá.
+# Acrescenta o site-packages do usuário ao sys.path. Por muito tempo se
+# creditou a isso a série de ModuleNotFoundError (`shapely`, `ee`,
+# `osgeo`, `geographiclib`); a causa real era outra — o `python` do PATH
+# desta máquina é a venv do Hermes Agent, sem nenhuma dessas bibliotecas.
+# Use py.cmd. Este trecho fica porque é inofensivo e cobre a instalação
+# com `pip install --user`.
 for _p in {site.getusersitepackages()} if isinstance(
         site.getusersitepackages(), str) else set(site.getusersitepackages()):
     if os.path.isdir(_p) and _p not in sys.path:
@@ -893,7 +898,7 @@ def processar_celula(ee, alvos, bc, cel, desde, ate):
                 if ha < ha_cheio * 0.99:
                     dnbr_med = None   # média não descreve mais a geometria
 
-                # RECORTE MUNICIPAL: o que está 100% fora dos 8 é
+                # RECORTE MUNICIPAL: o que está 100% fora dos municipios é
                 # descartado aqui (as células são retângulos e ~90% da
                 # área delas não interessa); o que cruza a divisa vira
                 # uma linha POR MUNICÍPIO, cada uma com a sua parte
@@ -1020,7 +1025,7 @@ def processar_celula(ee, alvos, bc, cel, desde, ate):
             if adds_poli or fora_descartados:
                 print("  [%s] %s: %d polígono(s) nos municípios, %.1f ha"
                       % (rot, dia, len(adds_poli), area_total) +
-                      (" · %d descartados fora dos 8" % fora_descartados
+                      (" · %d descartados fora dos municipios" % fora_descartados
                        if fora_descartados else ""))
         except Exception as e:
             print("  [%s] %s ERRO: %s" % (rot, dia, str(e)[:160]))
