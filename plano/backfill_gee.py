@@ -55,6 +55,7 @@ import os
 import re
 import site
 import sys
+import threading
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -290,6 +291,62 @@ def municipios_shapely():
             _MUNS.append((f["properties"]["codigo"],
                           f["properties"]["nome"], g, g.bounds))
     return _MUNS
+
+
+FOLGA_ALVO_M = 1000        # folga para não cortar componente na divisa
+_ALVO_MUN = {}             # geometria dos municípios com folga (uma só)
+_ALVO_CEL = {}             # bbox da célula -> alvo, ou None se não toca
+_ALVO_TRAVA = threading.Lock()
+
+
+def _municipios_com_folga_shapely():
+    """Os 9 municípios unidos, com ~1 km de folga, em WGS84 (shapely).
+
+    A folga e a simplificação são feitas aqui, NÃO no servidor: um
+    `.buffer()` do lado do GEE volta como expressão e viajaria junto em
+    cada uma das ~618 requisições da célula. O contorno é simplificado a
+    ~200 m porque isto é só uma margem para não cortar componente na
+    divisa — o recorte municipal de verdade vem depois, em
+    partes_municipais(), com os limites em resolução cheia.
+    """
+    if None in _ALVO_MUN:
+        return _ALVO_MUN[None]
+    from shapely.ops import unary_union
+    uni = unary_union([g for _, _, g, _ in municipios_shapely()])
+    folga = FOLGA_ALVO_M / 111000.0     # ~20 °S: 1 grau de lat ~ 111 km
+    _ALVO_MUN[None] = uni.buffer(folga).simplify(folga / 5,
+                                                 preserve_topology=True)
+    return _ALVO_MUN[None]
+
+
+def area_de_interesse(ee, ret, bbox):
+    """A parte da célula que vale a pena vetorizar. None = não toca
+    município nenhum, e aí a passagem inteira é pulada.
+
+    Tudo no shapely: a interseção sai sem ida ao servidor, e o resultado
+    é o mesmo para as ~618 passagens da célula, então fica em cache.
+    """
+    chave = tuple(round(v, 1) for v in bbox)
+    with _ALVO_TRAVA:
+        if chave in _ALVO_CEL:
+            return _ALVO_CEL[chave]
+        from shapely.geometry import box
+        b4326 = bbox4326_de(bbox)
+        inter = _municipios_com_folga_shapely().intersection(
+            box(b4326[0], b4326[1], b4326[2], b4326[3]))
+        if inter.is_empty or inter.area <= 0:
+            _ALVO_CEL[chave] = None
+        else:
+            aneis = []
+            for g in (inter.geoms if inter.geom_type == "MultiPolygon"
+                      else [inter]):
+                if g.geom_type != "Polygon" or g.is_empty:
+                    continue
+                aneis.append([[list(p) for p in g.exterior.coords]] +
+                             [[list(p) for p in i.coords] for i in g.interiors])
+            _ALVO_CEL[chave] = (ee.Geometry.MultiPolygon(aneis, None, False)
+                                if aneis else None)
+        return _ALVO_CEL[chave]
 
 
 def partes_municipais(geom, area_total_ha):
@@ -539,8 +596,25 @@ def poligonos_do_par(ee, cel, dia_base, sr_base, dia_atual, sr_atual,
     cc = queimado.connectedPixelCount(min(MIN_PX + 1, 256), False)
     queimado = queimado.updateMask(cc.gte(MIN_PX))
 
+    # VETORIZAR SÓ ONDE INTERESSA. As células são retângulos de 25 km que
+    # somam ~57.500 km² contra os 11.498 km² dos municípios, então a
+    # maior parte do que o dNBR acha cai fora e era vetorizada, medida,
+    # trazida pela rede e só então descartada: 19.546 polígonos jogados
+    # fora para 446 aproveitados numa passagem real, ~98% de trabalho
+    # perdido. Restringir aqui foi o que tirou o backfill de 49 dias.
+    #
+    # A folga de 1 km existe para o componente que cruza a divisa
+    # continuar sendo vetorizado INTEIRO: dnbr_med, n_pixels e a fração
+    # por classe descrevem o incêndio todo, e o recorte municipal
+    # continua sendo feito depois, em partes_municipais(). Sem a folga, o
+    # componente seria cortado na divisa e essas medidas mudariam de
+    # significado.
+    alvo = area_de_interesse(ee, ret, b)
+    if alvo is None:
+        return [], 0, False          # célula não toca município nenhum
+
     vet = queimado.reduceToVectors(
-        geometry=ret, crs="EPSG:3857", crsTransform=trans,
+        geometry=alvo, crs="EPSG:3857", crsTransform=trans,
         eightConnected=False, geometryType="polygon",
         labelProperty="lab", maxPixels=1e10)
     fc = dnbr.reduceRegions(
