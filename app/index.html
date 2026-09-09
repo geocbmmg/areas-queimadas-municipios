@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Áreas Queimadas — 8 Municípios</title>
+<title>Áreas Queimadas — 9 Municípios</title>
 <link rel="stylesheet" href="css/painel.css?v=2.0.0">
 <script src="js/config.js?v=2.0.0"></script>
 </head>
@@ -13,12 +13,13 @@
   <div class="marca">
     <img class="logo" src="img/logo-cbmmg.png" alt="CBMMG">
     <div>
-      <h1>Áreas Queimadas — 8 Municípios</h1>
+      <h1>Áreas Queimadas — 9 Municípios</h1>
       <p>Sentinel-2 · área queimada, biomassa consumida e emissões · CBMMG — CEB</p>
     </div>
   </div>
   <div class="topo-acoes">
     <span id="puChip" class="pill" title="consumo Copernicus no mês">0 PU</span>
+    <button id="btnMetodologia" class="pill">Metodologia</button>
     <span id="copStatus" class="pill">Copernicus: não conectado</span>
     <button id="btnEntrar" class="btn btn-primario">Entrar</button>
     <div id="perfil" class="perfil oculto">
@@ -170,6 +171,27 @@
         <button class="btn" id="copEsquecer">Esquecer credencial</button>
       </div>
 
+      <h3>Colar um token de acesso</h3>
+      <p class="det-dica">
+        Caminho direto quando o OAuth não passa (origem não autorizada
+        no cliente costuma falhar como erro de CORS, sem mensagem).
+        Gere o token e cole aqui — o app confere contra a API antes de
+        aceitar e usa a validade que vem dentro dele.
+      </p>
+      <details class="como-token">
+        <summary>como gerar o token</summary>
+        <p>No terminal, com o seu <i>client id</i> e <i>secret</i>:</p>
+        <pre>curl -X POST https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token -d "grant_type=client_credentials" -d "client_id=SEU_ID" -d "client_secret=SEU_SEGREDO"</pre>
+        <p>Copie o valor de <code>access_token</code> da resposta.</p>
+      </details>
+      <label class="campo">Access token
+        <textarea id="copToken" rows="3" spellcheck="false"
+                  placeholder="cole o access_token aqui"></textarea>
+      </label>
+      <div class="det-acoes-col">
+        <button class="btn btn-primario" id="copUsarToken">Validar e usar token</button>
+      </div>
+
       <h3>Ou entrar com a sua conta</h3>
       <p class="det-dica">
         Abre a página oficial do Copernicus; a senha é digitada lá, não
@@ -178,6 +200,63 @@
       <div class="det-acoes-col">
         <button class="btn" id="copLogin">Entrar com minha conta</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ metodologia (B, C e fatores de emissão) ============ -->
+<div class="modal oculto" id="modalMet">
+  <div class="modal-caixa modal-largo">
+    <header class="modal-topo">
+      <div>
+        <h2>Metodologia do cálculo</h2>
+        <p>E<sub>i</sub> = A × B × C × EF<sub>i</sub> — o banco guarda só o
+          <b>A</b> (área por classe). O resto é derivado daqui.</p>
+      </div>
+      <button class="fechar" id="metFechar" title="Fechar (Esc)">×</button>
+    </header>
+    <div class="modal-corpo-simples">
+      <div class="met-abas">
+        <button data-aba="bc" class="ativa">Consumo de biomassa (B e C)</button>
+        <button data-aba="ef">Fatores de emissão (EF)</button>
+      </div>
+
+      <section id="metBC">
+        <p class="det-dica">
+          <b>B</b> = carga de combustível disponível, em toneladas de
+          matéria seca por hectare. <b>C</b> = fração dessa carga que o
+          fogo de fato consome (0 a 1). A biomassa consumida de cada
+          mancha é <b>área × B × C</b> — por isso a coluna
+          <b>B×C</b>, que é quantas toneladas saem de cada hectare
+          queimado daquela classe.
+        </p>
+        <table class="tab-met" id="tabBC"></table>
+      </section>
+
+      <section id="metEF" class="oculto">
+        <p class="det-dica">
+          Gramas de poluente por quilo de matéria seca queimada. Uma
+          linha <b>sem classe</b> vale para todas as classes que não
+          tiverem valor próprio. Poluentes de qualidade do ar (PM2.5,
+          PM10, TPM, CO) e de efeito estufa (CO₂, CH₄, N₂O) convivem na
+          mesma tabela.
+        </p>
+        <table class="tab-met" id="tabEF"></table>
+        <div class="met-novo">
+          <input id="efPol" placeholder="poluente (ex.: CH4)">
+          <input id="efClasse" placeholder="classe (vazio = todas)" size="8">
+          <input id="efValor" placeholder="g/kg" size="6">
+          <input id="efFonte" placeholder="fonte">
+          <button class="btn btn-mini" id="efAdd">Acrescentar</button>
+        </div>
+      </section>
+
+      <p class="det-dica" id="metAviso"></p>
+      <div class="det-acoes-col">
+        <button class="btn btn-primario" id="metSalvar">Salvar metodologia</button>
+      </div>
+      <p class="mp-dica">Salvar não reprocessa nada: os valores passam a
+        valer na próxima consolidação e no painel imediatamente.</p>
     </div>
   </div>
 </div>

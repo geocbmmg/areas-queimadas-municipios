@@ -1,5 +1,5 @@
 /* =====================================================================
-   painel.js — Áreas Queimadas dos 8 municípios.
+   painel.js — Áreas Queimadas dos 9 Municípios.
 
    A interface é uma LISTA DE ÁREAS QUEIMADAS, não um plano de trabalho
    por quadrante: um operador só, querendo ver o que queimou, quanto, de
@@ -121,36 +121,151 @@
   }
   Pu.aoMudar = pintarPu;
 
+  /* ---------------- metodologia (B, C, EF) ---------------- */
+
+  var metBC = [], metEF = [];
+
+  async function abrirMetodologia() {
+    if (!Auth.token()) { aviso("Entre no Portal para editar a metodologia."); return; }
+    $("modalMet").classList.remove("oculto");
+    $("metAviso").textContent = "carregando…";
+    metBC = await Motor.consultarTudo(CFG.tabelaParametros, "1=1",
+      "objectid,classe_id,classe_nome,b_t_ha,c_fracao,fonte,obs");
+    metEF = await Motor.consultarTudo(CFG.tabelaFatoresEmissao, "1=1",
+      "objectid,poluente,classe_id,ef_g_kg,fonte,obs");
+    metBC.sort(function (a, b) { return (a.classe_id || 0) - (b.classe_id || 0); });
+    metEF.sort(function (a, b) {
+      return a.poluente === b.poluente
+        ? (a.classe_id || 0) - (b.classe_id || 0)
+        : (a.poluente < b.poluente ? -1 : 1);
+    });
+    pintarBC();
+    pintarEF();
+    $("metAviso").textContent = "";
+  }
+
+  function pintarBC() {
+    var h = "<tr><th>cód</th><th>classe</th><th>B (t/ha)</th>" +
+            "<th>C (0–1)</th><th>B×C (t/ha)</th><th>fonte</th></tr>";
+    h += metBC.map(function (p, i) {
+      var bc = (p.b_t_ha != null && p.c_fracao != null)
+        ? (p.b_t_ha * p.c_fracao) : null;
+      return "<tr><td>" + esc(p.classe_id) + "</td><td>" +
+        esc(p.classe_nome || "") + "</td>" +
+        '<td><input type="number" step="0.1" min="0" data-i="' + i +
+        '" data-c="b_t_ha" value="' + (p.b_t_ha != null ? p.b_t_ha : "") + '"></td>' +
+        '<td><input type="number" step="0.01" min="0" max="1" data-i="' + i +
+        '" data-c="c_fracao" value="' + (p.c_fracao != null ? p.c_fracao : "") + '"></td>' +
+        '<td class="bc-prod" id="bcp_' + i + '">' +
+        (bc != null ? fmt(bc, 2) : "—") + "</td>" +
+        '<td class="met-fonte" title="' + esc(p.fonte || "") + '">' +
+        esc((p.fonte || "").slice(0, 42)) + "</td></tr>";
+    }).join("");
+    $("tabBC").innerHTML = h;
+  }
+
+  function pintarEF() {
+    var h = "<tr><th>poluente</th><th>classe</th><th>EF (g/kg)</th>" +
+            "<th>fonte</th><th></th></tr>";
+    h += metEF.map(function (e, i) {
+      return "<tr><td><b>" + esc(e.poluente) + "</b></td><td>" +
+        (e.classe_id == null ? "<i>todas</i>" : esc(e.classe_id)) + "</td>" +
+        '<td><input type="number" step="0.1" min="0" data-i="' + i +
+        '" data-c="ef_g_kg" value="' + (e.ef_g_kg != null ? e.ef_g_kg : "") + '"></td>' +
+        '<td class="met-fonte" title="' + esc(e.fonte || "") + '">' +
+        esc((e.fonte || "").slice(0, 38)) + "</td>" +
+        '<td><button class="btn-x" data-del="' + i + '">×</button></td></tr>';
+    }).join("");
+    $("tabEF").innerHTML = h;
+  }
+
+  async function salvarMetodologia() {
+    var b = $("metSalvar");
+    b.disabled = true;
+    $("metAviso").textContent = "salvando…";
+    try {
+      var upBC = metBC.filter(function (p) { return p.__mudou; })
+        .map(function (p) {
+          return { attributes: { objectid: p.objectid, b_t_ha: p.b_t_ha,
+                                 c_fracao: p.c_fracao } };
+        });
+      var upEF = metEF.filter(function (e) { return e.__mudou && e.objectid; })
+        .map(function (e) {
+          return { attributes: { objectid: e.objectid, ef_g_kg: e.ef_g_kg } };
+        });
+      var novosEF = metEF.filter(function (e) { return !e.objectid; })
+        .map(function (e) {
+          return { attributes: { poluente: e.poluente, classe_id: e.classe_id,
+                                 ef_g_kg: e.ef_g_kg, fonte: e.fonte,
+                                 obs: "definido no painel" } };
+        });
+      var delEF = (metEF.__apagar || []).filter(Boolean);
+
+      if (upBC.length) {
+        Motor.conferir(await Motor.rest(CFG.tabelaParametros + "/applyEdits",
+          { updates: JSON.stringify(upBC) }));
+      }
+      if (upEF.length || novosEF.length || delEF.length) {
+        Motor.conferir(await Motor.rest(CFG.tabelaFatoresEmissao + "/applyEdits", {
+          updates: JSON.stringify(upEF), adds: JSON.stringify(novosEF),
+          deletes: delEF.join(",")
+        }));
+      }
+      Consolida.recarregarMetodologia();
+      $("metAviso").textContent = "";
+      alerta("Metodologia salva — vale já no painel e na próxima consolidação.");
+      if (sel) selecionar(sel);
+      await abrirMetodologia();
+    } catch (e) {
+      console.error(e);
+      $("metAviso").textContent = "";
+      aviso("Não salvou: " + (e.message || e));
+    } finally {
+      b.disabled = false;
+    }
+  }
+
   /* ---------------- tabelas de apoio ---------------- */
 
   async function carregarApoio() {
-    if (efs) return;
-    efs = { exato: {}, geral: {}, poluentes: {} };
-    var linhas = await Motor.consultarTudo(CFG.tabelaFatoresEmissao, "1=1",
-      "poluente,classe_id,ef_g_kg");
-    linhas.forEach(function (e) {
-      if (e.ef_g_kg == null) return;
-      efs.poluentes[e.poluente] = true;
-      if (e.classe_id == null) efs.geral[e.poluente] = e.ef_g_kg;
-      else efs.exato[e.poluente + "|" + e.classe_id] = e.ef_g_kg;
-    });
-    (await Motor.consultarTudo(CFG.tabelaParametros, "1=1",
-      "classe_id,classe_nome")).forEach(function (p) {
-      if (p.classe_id != null) nomesClasse[p.classe_id] = p.classe_nome;
-    });
+    // a metodologia mora no Consolida: uma fonte só para o painel e para
+    // o fechamento do mês, senão os dois divergiriam sem ninguém ver
+    var m = await Consolida.carregarMetodologia();
+    efs = m.ef;
+    for (var k in m.param) nomesClasse[k] = m.param[k].nome;
   }
 
-  function emissoesDe(biomassaT, classeId) {
-    if (biomassaT == null || !efs) return [];
-    var saida = [];
-    for (var pol in efs.poluentes) {
-      var ef = efs.exato[pol + "|" + classeId];
-      if (ef == null) ef = efs.geral[pol];
-      if (ef == null) continue;
-      saida.push({ poluente: pol, kg: biomassaT * ef });   // t × g/kg = kg
+  /**
+   * A conta aberta de um polígono, classe a classe:
+   * área (bruto) → B × C → biomassa → EF → emissões.
+   * Nada disso vem gravado; tudo sai dos parâmetros atuais.
+   */
+  async function contaDe(poli) {
+    var linhas = await Motor.consultarTudo(CFG.tabelaQueimadaClasse,
+      "poligono_gid = '" + poli.globalid + "'",
+      "classe_id,area_ha,n_pixels_classe");
+    if (!linhas.length) {
+      // sem detalhamento: usa a classe dominante sobre a área toda
+      linhas = [{ classe_id: poli.classe_uso, area_ha: poli.area_ha,
+                  n_pixels_classe: poli.n_pixels }];
     }
-    saida.sort(function (a, b) { return a.poluente < b.poluente ? -1 : 1; });
-    return saida;
+    var par = Consolida.parametros() || {};
+    var itens = [], bioTotal = 0, temBio = false, emiss = {};
+    linhas.forEach(function (l) {
+      var p = par[l.classe_id] || {};
+      var bio = Consolida.biomassaDe(l.area_ha || 0, l.classe_id);
+      if (bio != null) { bioTotal += bio; temBio = true; }
+      itens.push({ classe: l.classe_id, nome: nomesClasse[l.classe_id],
+                   area: l.area_ha || 0, px: l.n_pixels_classe,
+                   b: p.b, c: p.c, bio: bio });
+      if (bio == null) return;
+      for (var pol in Consolida.poluentes()) {
+        var ef = Consolida.efDe(pol, l.classe_id);
+        if (ef == null) continue;
+        emiss[pol] = (emiss[pol] || 0) + bio * ef;   // t × g/kg = kg
+      }
+    });
+    return { itens: itens, biomassa: temBio ? bioTotal : null, emiss: emiss };
   }
 
   /* ---------------- busca ---------------- */
@@ -257,22 +372,43 @@
       (a.mun_nome || "fora dos limites");
     $("daSub").textContent = "detectada em " + dataBr(a.__diaPass) +
       " · medida contra " + dataBr(a.__diaRef) +
-      " · " + (a.n_pixels || "?") + " px";
+      " · " + (a.n_pixels || "?") + " px · dNBR " +
+      (a.dnbr_med != null ? fmt(a.dnbr_med, 3) : "—");
 
-    var emiss = emissoesDe(a.biomassa_t, a.classe_uso);
-    var g = [
-      ["Área", fmt(a.area_ha, 2) + " ha"],
-      ["Uso do solo", nomesClasse[a.classe_uso] || "—"],
-      ["Biomassa consumida", a.biomassa_t != null
-        ? fmt(a.biomassa_t, 2) + " t" : "—"],
-      ["dNBR médio", a.dnbr_med != null ? fmt(a.dnbr_med, 3) : "—"]
-    ];
-    emiss.forEach(function (e) {
-      g.push([e.poluente, fmt(e.kg, e.kg < 10 ? 2 : 0) + " kg"]);
+    $("daGrid").innerHTML = '<div class="da-carregando">calculando…</div>';
+    contaDe(a).then(function (r) {
+      if (sel !== a) return;             // trocou de área no meio
+      // a conta ABERTA: o que foi medido, o que foi aplicado, o que saiu
+      var h = '<table class="tab-conta"><tr><th>classe</th><th>área ha</th>' +
+              "<th>B×C t/ha</th><th>biomassa t</th></tr>";
+      r.itens.sort(function (x, y) { return y.area - x.area; });
+      r.itens.forEach(function (i) {
+        var bc = (i.b != null && i.c != null) ? i.b * i.c : null;
+        h += "<tr><td>" + esc(i.nome || ("classe " + i.classe)) + "</td>" +
+          "<td>" + fmt(i.area, 3) + "</td>" +
+          "<td>" + (bc != null ? fmt(bc, 2) : "<i>sem parâmetro</i>") + "</td>" +
+          "<td>" + (i.bio != null ? fmt(i.bio, 2) : "—") + "</td></tr>";
+      });
+      h += "</table>";
+      h += '<div class="conta-total">biomassa consumida: <b>' +
+        (r.biomassa != null ? fmt(r.biomassa, 2) + " t" : "—") + "</b></div>";
+
+      var pols = Object.keys(r.emiss).sort();
+      if (pols.length) {
+        h += '<div class="da-grid2">' + pols.map(function (p) {
+          var kg = r.emiss[p];
+          return "<div><span>" + esc(p) + "</span><b>" +
+            (kg >= 1000 ? fmt(kg / 1000, 2) + " t" : fmt(kg, 1) + " kg") +
+            "</b></div>";
+        }).join("") + "</div>";
+      }
+      h += '<p class="mp-dica">Derivado dos parâmetros atuais — mude em ' +
+        "<b>Metodologia</b> e o número muda aqui na hora.</p>";
+      $("daGrid").innerHTML = h;
+    }).catch(function (e) {
+      $("daGrid").innerHTML = '<p class="det-dica">não calculou: ' +
+        esc(e.message || e) + "</p>";
     });
-    $("daGrid").innerHTML = g.map(function (p) {
-      return "<div><span>" + esc(p[0]) + "</span><b>" + esc(p[1]) + "</b></div>";
-    }).join("");
 
     // troca de área: as vistas da anterior não valem mais
     vistasDoSel = {};
@@ -473,7 +609,7 @@
     var html = "";
     if (soma) {
       html += '<div class="mensal-estado"><b>' + fmt(soma.area_ha, 1) +
-        " ha</b> nos 8 municípios" +
+        " ha</b> nos 9 Municípios" +
         (soma.biomassa_t != null
           ? " · " + fmt(soma.biomassa_t, 1) + " t de biomassa" : "") +
         "</div>";
@@ -552,7 +688,7 @@
     V.plano = await (await fetch("dados/quadrantes.json")).json();
     municipios = (V.plano.premissas.municipios || []).slice()
       .sort(function (a, b) { return a.nome < b.nome ? -1 : 1; });
-    $("fMunicipio").innerHTML = '<option value="">todos os 8</option>' +
+    $("fMunicipio").innerHTML = '<option value="">todos os 9</option>' +
       municipios.map(function (m) {
         return '<option value="' + m.codigo + '">' + esc(m.nome) + "</option>";
       }).join("");
@@ -566,7 +702,7 @@
       "conta de novo após " + CFG.regeneracaoDias + " dias · biomassa por " +
       "classe do MapBiomas do ano do fogo, com desempate Sentinel-2 10 m · " +
       "emissões E = A×B×C×EF (fatores Andreae 2019 / Akagi 2011, " +
-      "PROVISÓRIOS) · " + fmt(p.area_mg_km2) + " km² nos 8 municípios";
+      "PROVISÓRIOS) · " + fmt(p.area_mg_km2) + " km² nos 9 Municípios";
 
     $("fDe").value = "2017-01";
     $("fAte").value = new Date().toISOString().slice(0, 7);
@@ -634,6 +770,86 @@
       if (ev.key === "Escape") fecharModalCop();
     });
     $("copSalvar").addEventListener("click", salvarCliente);
+    $("copUsarToken").addEventListener("click", async function () {
+      var tk = $("copToken").value.trim();
+      if (!tk) { aviso("Cole o token primeiro."); return; }
+      var b = this;
+      b.disabled = true; b.textContent = "validando…";
+      try {
+        var s = await Copernicus.entrarComToken(tk);
+        pintarSessaoCop();
+        abrirModalCop();
+        alerta("Token aceito — válido até " +
+          new Date(s.expira).toLocaleString("pt-BR"));
+      } catch (e) {
+        aviso("Token não aceito: " + (e.message || e));
+      } finally {
+        b.disabled = false; b.textContent = "Validar e usar token";
+      }
+    });
+
+    // ---- metodologia ----
+    $("btnMetodologia").addEventListener("click", abrirMetodologia);
+    $("metFechar").addEventListener("click", function () {
+      $("modalMet").classList.add("oculto");
+    });
+    $("modalMet").addEventListener("click", function (ev) {
+      if (ev.target === $("modalMet")) $("modalMet").classList.add("oculto");
+    });
+    document.querySelectorAll(".met-abas button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        document.querySelectorAll(".met-abas button").forEach(function (x) {
+          x.classList.toggle("ativa", x === b);
+        });
+        $("metBC").classList.toggle("oculto", b.dataset.aba !== "bc");
+        $("metEF").classList.toggle("oculto", b.dataset.aba !== "ef");
+      });
+    });
+    $("tabBC").addEventListener("input", function (ev) {
+      var el = ev.target;
+      if (!el.dataset || el.dataset.i == null) return;
+      var p = metBC[Number(el.dataset.i)];
+      var v = el.value === "" ? null : Number(el.value);
+      p[el.dataset.c] = v;
+      p.__mudou = true;
+      var prod = (p.b_t_ha != null && p.c_fracao != null)
+        ? p.b_t_ha * p.c_fracao : null;
+      var cel = $("bcp_" + el.dataset.i);
+      if (cel) cel.textContent = prod != null ? fmt(prod, 2) : "—";
+    });
+    $("tabEF").addEventListener("input", function (ev) {
+      var el = ev.target;
+      if (!el.dataset || el.dataset.i == null) return;
+      var e = metEF[Number(el.dataset.i)];
+      e.ef_g_kg = el.value === "" ? null : Number(el.value);
+      e.__mudou = true;
+    });
+    $("tabEF").addEventListener("click", function (ev) {
+      var b = ev.target.closest("[data-del]");
+      if (!b) return;
+      var i = Number(b.dataset.del);
+      var e = metEF[i];
+      if (!confirm("Remover o fator " + e.poluente +
+                   (e.classe_id == null ? " (todas as classes)"
+                                        : " da classe " + e.classe_id) + "?")) return;
+      metEF.__apagar = (metEF.__apagar || []).concat(
+        e.objectid ? [e.objectid] : []);
+      metEF.splice(i, 1);
+      pintarEF();
+    });
+    $("efAdd").addEventListener("click", function () {
+      var pol = $("efPol").value.trim().toUpperCase();
+      var val = Number($("efValor").value);
+      if (!pol || !(val >= 0)) { aviso("Informe poluente e valor."); return; }
+      var cls = $("efClasse").value.trim();
+      metEF.push({ poluente: pol, ef_g_kg: val,
+                   classe_id: cls === "" ? null : Number(cls),
+                   fonte: $("efFonte").value.trim() || "definido no painel" });
+      $("efPol").value = ""; $("efValor").value = "";
+      $("efClasse").value = ""; $("efFonte").value = "";
+      pintarEF();
+    });
+    $("metSalvar").addEventListener("click", salvarMetodologia);
     $("copMostrar").addEventListener("change", function () {
       $("copSegredo").type = this.checked ? "text" : "password";
     });

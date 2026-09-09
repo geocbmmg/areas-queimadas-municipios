@@ -84,6 +84,75 @@ body { display: flex; flex-direction: column; }
 .pu-barra { height: 5px; border-radius: 3px; background: var(--eleva); margin-top: 6px; overflow: hidden; }
 .pu-barra i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .3s; }
 
+/* ---------- metodologia e conta aberta ---------- */
+.modal-largo { width: 780px; max-width: 100%; }
+.met-abas { display: flex; gap: 6px; margin-bottom: 10px; }
+.met-abas button {
+  flex: 1; border: 1px solid var(--borda); background: #fff; border-radius: 7px;
+  font: inherit; font-size: 12px; padding: 7px; cursor: pointer;
+  color: var(--fraco);
+}
+.met-abas button.ativa {
+  background: var(--acao); border-color: var(--acao); color: #fff;
+  font-weight: 650;
+}
+.tab-met, .tab-conta {
+  width: 100%; border-collapse: collapse; font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.tab-met th, .tab-conta th {
+  text-align: left; font-size: 10px; text-transform: uppercase;
+  letter-spacing: .3px; color: var(--fraco); font-weight: 650;
+  border-bottom: 1px solid var(--borda); padding: 5px 6px;
+}
+.tab-met td, .tab-conta td {
+  padding: 3px 6px; border-bottom: 1px solid #efefef;
+}
+.tab-met input {
+  width: 86px; font: inherit; font-size: 11.5px; padding: 3px 5px;
+  border: 1px solid var(--borda); border-radius: 5px; text-align: right;
+}
+.tab-met input:focus { outline: none; border-color: var(--acao); }
+.bc-prod { font-weight: 700; color: var(--acao); }
+.met-fonte {
+  color: var(--fraco); font-size: 10px; max-width: 230px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.btn-x {
+  border: none; background: none; color: var(--erro); cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 0 4px;
+}
+.met-novo { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+.met-novo input {
+  font: inherit; font-size: 11.5px; padding: 5px 7px; flex: 1; min-width: 70px;
+  border: 1px solid var(--borda); border-radius: 6px;
+}
+.met-novo .btn { width: auto; flex: none; }
+.como-token { margin: 6px 0; font-size: 11.5px; color: var(--fraco); }
+.como-token summary { cursor: pointer; color: var(--acao); }
+.como-token pre {
+  background: var(--eleva); padding: 7px; border-radius: 6px;
+  font-size: 9.5px; overflow-x: auto; white-space: pre-wrap;
+  word-break: break-all;
+}
+.campo textarea {
+  display: block; width: 100%; margin-top: 3px; font-family: monospace;
+  font-size: 11px; padding: 7px 9px; border: 1px solid var(--borda);
+  border-radius: 6px; resize: vertical;
+}
+.conta-total {
+  margin: 7px 0; padding: 6px 9px; background: var(--eleva);
+  border-radius: 6px; font-size: 12px;
+}
+.da-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.da-grid2 > div { background: var(--eleva); border-radius: 6px; padding: 5px 8px; }
+.da-grid2 span {
+  display: block; font-size: 9.5px; color: var(--fraco);
+  text-transform: uppercase; letter-spacing: .3px;
+}
+.da-grid2 b { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.da-carregando { color: var(--fraco); font-size: 12px; padding: 8px 0; }
+
 /* ---------- modal de acesso ---------- */
 .modal {
   position: fixed; inset: 0; z-index: 100; display: flex;

@@ -47,7 +47,7 @@ def main():
     tabs = {t.properties.name: t for t in item.tables}
 
     print("=" * 66)
-    print("  MONITOR DE AREAS QUEIMADAS — 8 MUNICIPIOS")
+    print("  MONITOR DE AREAS QUEIMADAS — 9 Municípios")
     print("  servico:", ITEM, "· portal:", gis.users.me.username)
     print("=" * 66)
 

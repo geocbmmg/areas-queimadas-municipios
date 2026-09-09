@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 BACKFILL 2017–2025 pela rota Google Earth Engine — a série retroativa do
-Monitor dos 8 Municípios, gravada no MESMO serviço do Portal que o motor
+Monitor dos 9 Municípios, gravada no MESMO serviço do Portal que o motor
 vivo usa, com as MESMAS regras (plano REFORMULACAO.md §6):
 
   · mesmas células de 10 m (partição 2×2 das células-mãe, quadrantes.json);
@@ -901,21 +901,20 @@ def processar_celula(ee, alvos, bc, cel, desde, ate):
                                  else (classes_da_feicao(
                                      mapping(geom_mun), cel, tile)
                                      if tile is not None else {}))
+                    # DADO BRUTO: área e pixels por classe. Biomassa e
+                    # emissões NÃO são calculadas aqui — saem na leitura,
+                    # dos parâmetros que o usuário edita. Gravar o
+                    # produto já multiplicado obrigaria a reprocessar
+                    # anos de GEE a cada revisão de metodologia.
                     total_px = sum(classes_m.values()) or 0
-                    classe_uso, bio_total, calculou = None, 0.0, False
-                    maxpx = 0
+                    classe_uso, maxpx = None, 0
                     itens = []
                     for cid, npx in classes_m.items():
                         cid = int(cid)
                         a_c = ha_m * npx / total_px if total_px else 0
-                        fator = bc.get(cid)
-                        bio = a_c * fator if fator is not None else None
-                        if bio is not None:
-                            bio_total += bio
-                            calculou = True
                         if npx > maxpx:
                             maxpx, classe_uso = npx, cid
-                        itens.append((cid, a_c, bio))
+                        itens.append((cid, a_c, int(npx)))
 
                     adds_poli.append({
                         "geometry": {"rings": para_rings_esri(geom_mun),
@@ -933,8 +932,7 @@ def processar_celula(ee, alvos, bc, cel, desde, ate):
                             if dnbr_med is not None else None,
                             "status": "Queimada",
                             "classe_uso": classe_uso,
-                            "biomassa_t": round(bio_total, 3)
-                            if calculou else None,
+                            # biomassa é DERIVADA na leitura, não gravada
                             "cena_id": pas["id"],
                             "cena_ref_id": cena_de.get(base_dia),
                             "metodo": ("dNBR (B08/B12) %d m · base %s · "
@@ -956,7 +954,7 @@ def processar_celula(ee, alvos, bc, cel, desde, ate):
                           for p in lote]), rot)
                 for p, r in zip(lote, res["addResults"]):
                     gid = r.get("globalId")
-                    for cid, a_c, bio in p["_itens"]:
+                    for cid, a_c, npx_c in p["_itens"]:
                         adds_classe.append({"attributes": {
                             "poligono_gid": gid,
                             "competencia": dia[:7],
@@ -964,10 +962,9 @@ def processar_celula(ee, alvos, bc, cel, desde, ate):
                             "data_pass": epoch_meio_dia(dia),
                             "classe_id": cid,
                             "area_ha": round(a_c, 4),
+                            "n_pixels_classe": npx_c,
                             "n_pixels": p["attributes"].get("n_pixels"),
-                            "municipio": p["attributes"].get("municipio"),
-                            "biomassa_t": round(bio, 3)
-                            if bio is not None else None}})
+                            "municipio": p["attributes"].get("municipio")}})
             for i in range(0, len(adds_classe), 500):
                 conferir(alvos["classe"].edit_features(
                     adds=adds_classe[i:i + 500]), rot)

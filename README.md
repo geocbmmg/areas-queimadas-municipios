@@ -1,4 +1,4 @@
-# Áreas Queimadas e Emissões — 8 Municípios
+# Áreas Queimadas e Emissões — 9 Municípios
 
 Belo Horizonte · Betim · Conceição do Mato Dentro · Congonhas ·
 Contagem · Ipatinga · São José da Lapa · Timóteo
@@ -36,8 +36,8 @@ Roda no navegador e grava tudo no Portal ArcGIS do CBMMG. O histórico
 ### Numa máquina nova
 
 ```
-python infra/00_checar_ambiente.py     # o que falta instalar/configurar
-python infra/30_estado.py              # em que pé está o processamento
+py.cmd infra/00_checar_ambiente.py     # o que falta instalar/configurar
+py.cmd infra/30_estado.py              # em que pé está o processamento
 ```
 
 O primeiro diz o que falta e o comando exato para resolver. O segundo lê
@@ -67,10 +67,10 @@ exclui ali mesmo.
 
 ## Os números do plano
 
-- **52 células** de 25 km (10 m/px) cobrindo os 8 municípios, em 3
+- **92 células** de 25 km (10 m/px) cobrindo os 9 Municípios, em 3
   blocos da malha estadual
 - **3.269 km²** de área municipal
-- **9.918 PU/mês** se rodar tudo ao vivo a 10 m — cabe numa conta
+- **17.548 PU/mês** se rodar tudo ao vivo a 10 m — cabe numa conta
   gratuita do Copernicus (30.000 PU/mês)
 - Histórico pelo **GEE**: custo zero de PU
 

@@ -8,8 +8,12 @@ porquê** estão em [DOCUMENTACAO.md](DOCUMENTACAO.md); aqui é o **como**.
 ```bash
 git clone https://github.com/geocbmmg/areas-queimadas-municipios.git
 cd areas-queimadas-municipios
-"C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" infra\00_checar_ambiente.py
+py.cmd infra\00_checar_ambiente.py
 ```
+
+**Sempre `py.cmd`, nunca `python`.** O `py.cmd` na raiz do repositório
+chama o Python do ArcGIS Pro, que é o único desta máquina com as
+bibliotecas do projeto. Veja §2.
 
 O verificador diz **exatamente o que falta e o comando para resolver**:
 bibliotecas, credenciais do Portal, autenticação do Earth Engine. Quando
@@ -27,7 +31,7 @@ O resto deste arquivo é o detalhe de cada item.
 | **Credenciais do Portal** | arquivo local fora do repo | criar à mão — §3 |
 | **Credencial do Copernicus** | no navegador de quem usa | colada no painel — §6 |
 | **Autenticação do Earth Engine** | perfil do usuário do Windows | `ee.Authenticate()` — §4 |
-| **Tiles de uso do solo** (364 PNGs, ~50 MB) | anexos no Portal | rodar `plano/gerar_lulc_tiles.py` — §5 |
+| **Tiles de uso do solo** (644 PNGs, ~50 MB) | anexos no Portal | rodar `plano/gerar_lulc_tiles.py` — §5 |
 | **Dados de queimada** | no Portal (item `3809b06e…`) | nada a fazer: são do servidor |
 
 Nada disso é segredo perdido: tudo se regenera com os scripts do repo.
@@ -36,36 +40,33 @@ Nada disso é segredo perdido: tudo se regenera com os scripts do repo.
 
 ## 2. Programas necessários
 
-- **Python do ArcGIS Pro** — é o que tem `arcgis`, `numpy`, `gdal` e
-  `shapely` já instalados:
+- **Python do ArcGIS Pro** — é o que tem `arcgis`, `numpy`, `gdal`,
+  `shapely`, `requests` e `ee` já instalados:
   `C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe`
+  (conferido: Python 3.13.13, GDAL 3.12.2). O `py.cmd` da raiz do
+  repositório é só um atalho para ele.
 - **Node.js** (só para `npx vercel`, ao publicar)
 - **git** e **gh** (GitHub CLI), autenticado como `geocbmmg`
 
-Dois pacotes costumam faltar (o verificador confirma quais):
-
-```
-"C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" -m pip install --user shapely earthengine-api
-```
-
-> **Armadilha que custou várias tentativas:** o Python do ArcGIS Pro
-> **nem sempre inclui o `site-packages` do usuário no `sys.path`** — o
-> mesmo executável carrega `shapely` numa sessão do PowerShell e falha
-> com `ModuleNotFoundError` noutra, dependendo de como o terminal foi
-> aberto. O sintoma é cruel: um módulo diferente falta a cada execução,
-> parecendo que a instalação não funcionou.
+> **A armadilha que custou horas — e não era o que parecia.** Uma
+> sequência de `ModuleNotFoundError` (`geographiclib`, `shapely`, `ee`,
+> `osgeo`) fez concluir que o Python do ArcGIS Pro estava ignorando o
+> `site-packages` do usuário. **Não estava.** O que acontecia é que
+> `python`, no `PATH` desta máquina, resolve para
+> `…\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe` — a
+> venv do Hermes Agent, que não tem nenhuma dessas bibliotecas. Cada
+> script "faltando um módulo diferente" era só o interpretador errado.
 >
-> Os scripts do projeto já **acrescentam esse caminho sozinhos** no topo
-> do arquivo. Se você rodar um comando avulso (`python -c "import ee"`)
-> e ele falhar mesmo com o pacote instalado, é isso — e o
-> `00_checar_ambiente.py` denuncia com um AVISO.
+> Por isso **`py.cmd`, nunca `python`**. Se um dia o erro voltar,
+> confirme primeiro com `python -c "import sys; print(sys.executable)"`
+> antes de instalar coisa alguma.
 
-> **Área geodésica não depende de biblioteca.** `pyproj` não existe
-> nesse ambiente e `geographiclib` some conforme o terminal — instalar
-> com `--user` funciona numa sessão e não noutra. Por isso o cálculo é
-> feito no próprio `backfill_gee.py`, com as séries do WGS84: conferido
-> contra o geographiclib, a diferença fica em **0,002%** de 200 m² a
-> 1 km². Não reintroduza a dependência.
+> **Área geodésica não depende de biblioteca.** O cálculo é feito no
+> próprio `backfill_gee.py`, com as séries do WGS84: conferido contra o
+> `geographiclib`, a diferença fica em **0,002%** de 200 m² a 1 km².
+> A dependência foi removida quando ainda se atribuía o problema ao
+> `sys.path`; como a implementação própria já está verificada e não
+> custa nada, não vale a pena reintroduzi-la.
 
 ---
 
@@ -95,7 +96,7 @@ de `infra/*.py` e `plano/backfill_gee.py`.
 Rode uma vez, **num terminal interativo** (ele pede para colar um código):
 
 ```
-"C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" -c "import ee; ee.Authenticate()"
+py.cmd -c "import ee; ee.Authenticate()"
 ```
 
 Entre com a conta **leandrogomesbh**, projeto **incendioflorestalmg**.
@@ -109,12 +110,12 @@ não expira.
 
 ## 5. Regenerar os tiles de uso do solo
 
-Os 364 PNGs (52 células × 7 anos) são a base do **B×C** da fórmula. Já
+Os 644 PNGs (92 células × 7 anos) são a base do **B×C** da fórmula. Já
 estão como anexos no Portal — só refaça se precisar de um ano novo:
 
 ```
 cd plano
-python gerar_lulc_tiles.py 2023      # um ano
+py.cmd gerar_lulc_tiles.py 2023      # um ano
 ```
 
 O script é idempotente: pula o que já está lá. Para forçar, `FORCAR=1`.
@@ -149,15 +150,15 @@ rodar de novo continua de onde parou.
 
 ```
 cd plano
-python backfill_gee.py --paralelo 3                    # tudo o que falta
-python backfill_gee.py --quads A2 --celulas 17         # uma célula
-python backfill_gee.py --ate 2017-12-31                # até uma data
+py.cmd backfill_gee.py --paralelo 3                    # tudo o que falta
+py.cmd backfill_gee.py --quads -20_-9 --celulas 17         # uma célula
+py.cmd backfill_gee.py --ate 2017-12-31                # até uma data
 ```
 
 Ver o progresso a qualquer momento:
 
 ```
-python ..\infra\30_estado.py
+py.cmd ..\infra\30_estado.py
 ```
 
 ---
@@ -194,7 +195,7 @@ npx vercel --prod --yes
 Domínio novo (se algum dia houver) precisa entrar nos dois lugares:
 
 ```
-python infra\21_registrar_redirect.py https://NOVO-DOMINIO
+py.cmd infra\21_registrar_redirect.py https://NOVO-DOMINIO
 ```
 
 e, no Copernicus, em *Allowed origins* do OAuth client.
@@ -208,9 +209,9 @@ Estado em **04/09/2026**, ao passar o trabalho para outra máquina:
 - **Painel:** pronto e publicado, com as quatro vistas de validação
   (cor verdadeira e falsa cor, antes e depois) e o consolidado mensal.
 - **Parâmetros no Portal:** completos — 22 classes de biomassa (B×C),
-  66 fatores de emissão, 364 tiles de uso do solo (2017–2023).
+  66 fatores de emissão, 644 tiles de uso do solo (2017–2023).
 - **Histórico:** **começado, longe do fim.** Rodaram algumas células de
-  2017 (A1 e A2, parcial). Faltam a maioria das 52 células e os anos de
+  2017 (A1 e A2, parcial). Faltam a maioria das 92 células e os anos de
   2018 a 2025.
 - **Consolidado mensal:** nenhum mês fechado ainda — só faz sentido
   depois que o histórico do mês estiver completo.
@@ -218,7 +219,7 @@ Estado em **04/09/2026**, ao passar o trabalho para outra máquina:
 Ou seja: **o próximo passo é rodar o backfill até o fim** (§7), depois
 consolidar os meses no painel e validar por amostragem.
 
-`python infra/30_estado.py` dá esse retrato atualizado a qualquer
+`py.cmd infra/30_estado.py` dá esse retrato atualizado a qualquer
 momento — não confie nesta seção, que envelhece.
 
 ## 10. Armadilhas que já custaram caro
@@ -248,12 +249,13 @@ Estão detalhadas na DOCUMENTACAO.md, mas as que mais mordem:
   somas e denuncia; `31_orfaos.py --apagar` limpa. Rodar o backfill de
   novo também conserta (a passagem volta à fila e a higiene apaga os
   órfãos antes de recalcular).
-- **`site-packages` do usuário fora do `sys.path`** (§2) — o mesmo
-  Python acha um pacote numa sessão e não noutra.
-- **Área geodésica não usa biblioteca**, de propósito: `pyproj` não
-  existe no ambiente do Pro e `geographiclib` sofre do problema acima.
-  As séries do WGS84 no `backfill_gee.py` batem com o geographiclib em
-  0,002% de 200 m² a 1 km².
+- **`python` no `PATH` é o interpretador errado** (§2) — é a venv do
+  Hermes Agent, sem nenhuma das bibliotecas do projeto. Use `py.cmd`.
+  Esta é a causa real da série de `ModuleNotFoundError`, que por muito
+  tempo foi atribuída ao `sys.path` do ArcGIS Pro.
+- **Área geodésica não usa biblioteca**: as séries do WGS84 no
+  `backfill_gee.py` batem com o `geographiclib` em 0,002% de 200 m² a
+  1 km², então não há motivo para trazer a dependência de volta.
 - **Sub-bloco sem imagem não é erro.** Quando a memória do GEE obriga a
   refazer a célula em 4×4, alguns sub-blocos caem fora da faixa da cena
   e o `mosaic()` volta sem banda. É ausência de imagem, e o script pula.

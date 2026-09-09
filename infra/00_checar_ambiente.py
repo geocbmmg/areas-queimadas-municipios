@@ -40,7 +40,7 @@ def cabeca(t):
 
 
 print("=" * 62)
-print("  AMBIENTE — Areas Queimadas 8 Municipios")
+print("  AMBIENTE — Areas Queimadas 9 Municípios")
 print("=" * 62)
 print("python:", sys.executable)
 print("versao:", sys.version.split()[0])

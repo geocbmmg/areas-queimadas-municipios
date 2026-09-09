@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Cria o serviço do MONITOR DOS 8 MUNICÍPIOS — fork do monitor estadual com
+Cria o serviço do MONITOR DOS 9 Municípios — fork do monitor estadual com
 o recorte trocado para os municípios do estudo de área queimada:
 BH, Betim, Conceição do Mato Dentro, Congonhas, Contagem, Ipatinga,
 São José da Lapa e Timóteo.
@@ -35,7 +35,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 
 CRED = r"C:\Users\m1590850\OneDrive\Área de Trabalho\Projetos do Claude\focos-calor-mg\credenciais_portal.txt"
 NOME = "Monitor_Queimadas_Municipios"
-TITULO = "Monitor de Queimadas — 8 Municípios"
+TITULO = "Monitor de Queimadas — 9 Municípios"
 
 SR = {"wkid": 4326, "latestWkid": 4326}
 EXTENT = {"xmin": -44.4, "ymin": -20.7, "xmax": -42.3, "ymax": -18.6,
@@ -56,7 +56,7 @@ GLOBALID = campo("globalid", "GlobalID", "GlobalID", nullable=False,
 # ------------------------------------------------------------ comuns
 def chave():
     return [
-        campo("quad_id", "String", "Quadrante", length=6),
+        campo("quad_id", "String", "Quadrante", length=16),
         campo("celula", "Integer", "Célula"),
         campo("res_m", "SmallInteger", "Resolução (m)"),
         campo("data_pass", "Date", "Data da passagem", length=8),
@@ -110,7 +110,7 @@ CAMPOS_CTRL = [OID] + chave() + [
 ]
 
 CAMPOS_ATRIB = [OID,
-                campo("quad_id", "String", "Quadrante", length=6),
+                campo("quad_id", "String", "Quadrante", length=16),
                 campo("usuario", "String", "Responsável (login)", length=100),
                 GLOBALID]
 
@@ -142,21 +142,32 @@ CAMPOS_PARAM = [OID,
     campo("obs", "String", "Observações", length=250),
     GLOBALID]
 
+# O DADO BRUTO do projeto mora aqui: quantos hectares de cada classe de
+# uso do solo queimaram, em cada polígono, em cada passagem.
+#
+# Biomassa e emissões NÃO são gravadas: são derivadas na leitura, a
+# partir desta área e das tabelas de parâmetros (B, C e EF), que o
+# usuário edita. Assim, trocar a metodologia — outra carga de
+# combustível, outra fração consumida, outro fator de emissão — é
+# reconsolidar o mês em segundos, não reprocessar anos de Earth Engine.
 CAMPOS_QXC = [OID,
     campo("poligono_gid", "String", "GlobalID do polígono", length=38),
     campo("competencia", "String", "Competência (AAAA-MM)", length=7),
-    campo("quad_id", "String", "Quadrante", length=6),
+    campo("quad_id", "String", "Quadrante", length=16),
     campo("celula", "Integer", "Célula"),
     campo("res_m", "SmallInteger", "Resolução (m)"),
     campo("data_pass", "Date", "Data da passagem", length=8),
     campo("classe_id", "SmallInteger", "Classe MapBiomas (código)"),
-    campo("area_ha", "Double", "Área (ha) desta classe no polígono"),
+    campo("area_ha", "Double", "Área (ha) desta classe — DADO BRUTO"),
+    campo("n_pixels_classe", "Integer", "Pixels desta classe — DADO BRUTO"),
     campo("municipio", "String", "Município (IBGE)", length=7),
     # pixels do polígono PAI — repetido aqui para o piso de relatório
     # filtrar as duas tabelas pelo mesmo critério (o area_ha desta tabela
     # é a fatia da classe, não o tamanho do polígono)
     campo("n_pixels", "Integer", "Pixels do polígono"),
-    campo("biomassa_t", "Double", "Biomassa consumida (t)"),
+    # LEGADO: mantido para não quebrar linhas antigas. O motor não grava
+    # mais — biomassa é sempre derivada dos parâmetros na leitura.
+    campo("biomassa_t", "Double", "(legado — biomassa é derivada)"),
     GLOBALID]
 
 CAMPOS_EF = [OID,
@@ -375,7 +386,7 @@ def main():
             })
         item.update(item_properties={
             "title": TITULO,
-            "snippet": "Queimadas, biomassa e emissões — 8 municípios do estudo (CBMMG/CEB)",
+            "snippet": "Queimadas, biomassa e emissões — 9 Municípios do estudo (CBMMG/CEB)",
             "tags": "CBMMG,queimadas,Sentinel-2,dNBR,emissões,municípios,MG",
         })
         print("[CRIADO]", item.id)

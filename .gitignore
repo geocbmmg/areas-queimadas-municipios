@@ -5,7 +5,7 @@
 __pycache__/
 infra/backup/
 
-# tiles de uso do solo (364 PNGs, ~50 MB): são gerados por
+# tiles de uso do solo (644 PNGs, ~50 MB): são gerados por
 # plano/gerar_lulc_tiles.py e vivem como anexos no Portal — o app os lê
 # de lá, não do repositório
 plano/tiles/

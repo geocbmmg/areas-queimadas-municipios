@@ -1,8 +1,8 @@
-# Monitor de Queimadas — 8 Municípios
+# Monitor de Queimadas — 9 Municípios
 ## Documentação técnica: fontes, forma de cálculo, scripts e armazenamento
 
 > Fork do monitor estadual (`monitor-queimadas-mg`) com o recorte trocado
-> para os 8 municípios do estudo de área queimada 2015–2024, e com o
+> para os 9 Municípios do estudo de área queimada 2015–2024, e com o
 > objetivo final de **estimar as emissões atmosféricas** (particulados em
 > primeiro lugar) dos incêndios detectados:
 >
@@ -25,9 +25,14 @@
 | Congonhas | 3118007 | 306 |
 | Contagem | 3118601 | 196 |
 | Ipatinga | 3131307 | 166 |
+| Paracatu | 3147006 | 8.229 |
 | São José da Lapa | 3162955 | 48 |
 | Timóteo | 3168705 | 145 |
-| **Total** | | **≈ 3.269** |
+| **Total** | | **≈ 11.498** |
+
+Paracatu entrou depois dos oito primeiros e **mais que triplicou a área
+monitorada** — sozinho é 2,5× a soma dos outros oito. Daí a malha ter
+saltado de 52 para 92 células de 10 m.
 
 Atenção histórica: três códigos têm homônimos traiçoeiros — Conceição do
 Pará (3117603), Congonhas do Norte (3118106) e Teófilo Otoni (3168606)
@@ -114,19 +119,49 @@ conferidos na base de municípios do IBGE.
   formação florestal). Resultado: nenhuma classe genérica na
   contabilidade (~0,3% residual).
 - A_classe = area_ha do polígono × fração de pixels da classe.
+
+> **O banco guarda o dado bruto, não o resultado.** A tabela "Queimada
+> por classe" grava apenas `(cid, a_c, npx_c)` — classe, área em hectares
+> e contagem de pixels. **B**, **C** e os fatores de emissão **não** são
+> gravados em lugar nenhum junto do polígono: são aplicados na leitura,
+> a partir das tabelas de parâmetros. Trocar um valor de B, C ou EF muda
+> todo o histórico na hora, sem reprocessar imagem alguma.
+>
+> Foi por isso que `biomassa_t` no polígono virou **campo legado**: ele
+> congelava uma parametrização dentro do dado. Continua na tabela por
+> compatibilidade, mas não é escrito nem lido pelo painel.
+
 - M_classe = A_classe × B_classe × C_classe, com **B** (t MS/ha) e **C**
   (fração consumida, 0–1) da tabela "Parametros de biomassa" do serviço
-  (editável no Portal; 22 classes semeadas com fontes — ver §3.5).
-- `biomassa_t` do polígono = Σ M_classe; o detalhamento por classe vai
-  para a tabela "Queimada por classe".
+  (22 classes semeadas com fontes — ver §3.5), **derivado na leitura**
+  por `consolida.js:biomassaDe()`.
+- A coluna **B×C** da tela de metodologia é o que interessa na prática:
+  quantas toneladas de matéria seca saem de cada hectare queimado
+  daquela classe.
 
 ### 2.3 Emissões (E_i = M × EF_i)
 
 - EF_i em g de poluente por kg de matéria seca queimada, da tabela
-  "Fatores de emissao" do serviço (editável no Portal; 64 linhas
-  semeadas — PM2.5, PM10, TPM, CO e CO₂ por classe — ver §3.6; valores
-  PROVISÓRIOS até os fatores oficiais do projeto serem fornecidos).
-- E_i por município/mês = Σ (biomassa_t × EF_i) na consolidação.
+  "Fatores de emissao" do serviço (66 linhas semeadas — ver §3.6;
+  valores PROVISÓRIOS até os fatores oficiais do projeto serem
+  fornecidos).
+- A tabela cobre os dois objetivos do trabalho: **qualidade do ar**
+  (PM2.5, PM10, TPM, CO) e **gases de efeito estufa** (CO₂, CH₄, N₂O).
+  Uma linha **sem classe** vale como padrão para as classes que não
+  tiverem valor próprio.
+- E_i por município/mês = Σ (M_classe × EF_i), também derivado na
+  leitura — nunca gravado.
+
+### 2.3.1 Tela de metodologia
+
+O botão **Metodologia** no topo do painel abre as duas tabelas
+editáveis (B/C e EF). Salvar **não reprocessa nada**: os valores passam
+a valer imediatamente no painel e na próxima consolidação. É o ponto
+único onde a metodologia se adapta à fonte que for adotada.
+
+Ao clicar num polígono, o detalhe mostra a **conta aberta** por classe —
+área → B×C → biomassa → emissões — para que o número possa ser
+conferido à mão.
 - Nota IPCC: para campo, pastagem e lavoura o CO₂ é tratado como neutro
   (a rebrota anual compensa) — reportam-se os gases e particulados
   não-CO₂; o CO₂ fica como referência.
@@ -160,6 +195,33 @@ verificada".
 - **Acesso (retroativo 2017–2025):** Google Earth Engine, coleção
   `COPERNICUS/S2_SR_HARMONIZED` (mesmas cenas L2A com SCL, de
   28/03/2017 em diante; custo zero).
+
+**Como o painel se autentica no Copernicus** — três caminhos, na tela
+que abre pela pílula "Copernicus":
+
+1. **Client ID + secret** (OAuth client credentials). É o caminho
+   documentado pelo Sentinel Hub e o que não expira a cada sessão.
+2. **Colar um access token.** Necessário quando o OAuth não passa: se a
+   origem do painel não estiver em *Allowed origins* do client, o
+   navegador barra a chamada e o erro chega como **falha de CORS, sem
+   mensagem útil** — parece credencial errada, mas não é. O token se
+   gera no terminal:
+
+   ```
+   curl -X POST https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token \
+     -d "grant_type=client_credentials" -d "client_id=SEU_ID" -d "client_secret=SEU_SEGREDO"
+   ```
+
+   O painel (`copernicus.js:entrarComToken`) tira um `Bearer ` da frente
+   se vier junto, **valida o token contra o catálogo antes de aceitar**
+   (401/403 viram erro claro) e lê a validade real do campo `exp` de
+   dentro do JWT, em vez de supor uma hora.
+3. **Login interativo na conta** — a senha é digitada na página oficial
+   do Copernicus, não no painel. A sessão expira com frequência.
+
+> Credencial e token ficam **só no `localStorage` do navegador** de quem
+> usa, naquela máquina. Nada disso é enviado a servidor nosso nem
+> embutido no código publicado — cada PC cola o seu.
 
 ### 3.2 Limites municipais
 
@@ -257,8 +319,8 @@ reais `7c6e4f70a1534d4da68bf1db9b9bb344` (fase F4).
 
 | Script | Papel |
 |---|---|
-| `plano/gerar_celulas_municipios.py` | gera a malha (13 células-mãe = 52 a 10 m, 3 quadrantes) a partir dos limites IBGE; escreve `app/dados/{quadrantes.json, quadrantes.geojson, celulas.geojson, municipios.geojson}` |
-| `plano/gerar_lulc_tiles.py` | gera os 52 tiles de uso do solo (janela dos COGs públicos MapBiomas + Esri via range request, desempate do mosaico, PNG cinza) e anexa na tabela 7; retomável; `gerar_lulc_tiles.py <ano>` para o backfill |
+| `plano/gerar_celulas_municipios.py` | gera a malha (23 células-mãe = 92 a 10 m, 5 quadrantes) a partir dos limites IBGE; escreve `app/dados/{quadrantes.json, quadrantes.geojson, celulas.geojson, municipios.geojson}` |
+| `plano/gerar_lulc_tiles.py` | gera os 644 tiles de uso do solo (janela dos COGs públicos MapBiomas + Esri via range request, desempate do mosaico, PNG cinza) e anexa na tabela 7; retomável; `gerar_lulc_tiles.py <ano>` para o backfill |
 | `infra/20_criar_camadas_municipios.py` | cria/estende o serviço no Portal (idempotente) e semeia as tabelas 4 (B×C) e 6 (EF) |
 | `infra/21_registrar_redirect.py` | registra o redirect URI de um domínio novo no app OAuth (`nRFBQ8adfZIqHm56`) |
 | `infra/22_retrofit_competencia.py` | preenche `competencia` em linhas antigas (não usado — serviço nasceu com o campo) |
@@ -295,9 +357,19 @@ OAuth — `infra/21`).
 | `inicioMonitoramento` | 2026-01-01 | início do monitor vivo (o retroativo é o backfill GEE) |
 | `cotaMensalPU` / `tetoTrabalhoPU` | 10.000 / 9.000 | orçamento Copernicus por operador |
 
-Custo do plano a 10 m: **9.918 PU/mês** (3 quadrantes: A1 33%, A2 87%,
-B2 22% do orçamento de um militar) — 2 militares na cota conservadora de
-7.000, ou 1 conta na cota real de 30.000.
+Custo do plano a 10 m: **17.548 PU/mês** para as 92 células dos 9
+municípios — cabe em 1 conta na cota real de 30.000 PU/mês, ou 3
+militares na cota conservadora de 7.000.
+
+> **Os IDs de quadrante são absolutos, e isso é de propósito.** Eles
+> vêm da posição da célula na grade EPSG:3857 ancorada na origem
+> (`-19_-9`, `-20_-9`, `-20_-10`, `-21_-8`, `-22_-8`) — não de A1, A2,
+> B2 como na primeira versão, que numerava a partir do canto do bbox
+> que envolvia os municípios. Com IDs relativos, **incluir Paracatu
+> renomeou A1 para C1** e invalidou em silêncio todo o histórico já
+> processado, porque o controle no Portal é indexado pelo `quad_id`.
+> Com IDs absolutos, acrescentar município nenhum move as células
+> existentes.
 
 ---
 
@@ -319,9 +391,9 @@ B2 22% do orçamento de um militar) — 2 militares na cota conservadora de
   por classe (calculada sobre o componente inteiro) é aplicada à área
   que sobrou — aproximação razoável porque reincidência tende a queimar
   a mesma vegetação.
-- As emissões por município são rateadas pela biomassa municipal
-  (fração da biomassa total), não por classe×município — aproximação
-  documentada; a linha "emissao" dos 8 municípios usa a soma exata por
-  classe.
+- ~~Emissões por município rateadas pela biomassa municipal~~ —
+  **resolvido.** A consolidação agora agrupa a tabela de classes por
+  `municipio, classe_id` no servidor e deriva biomassa e emissões por
+  classe dentro de cada município. Não há mais rateio.
 - O monitor vivo usa o mapa de uso do solo de `anoLULC` (2023, o último
   com MapBiomas Col.9 + desempate Esri); o backfill usa o ano do fogo.

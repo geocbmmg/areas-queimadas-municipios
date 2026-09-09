@@ -89,6 +89,60 @@
     try { localStorage.removeItem(CHAVE_CLIENTE); } catch (e) {}
   }
 
+  /* ---------------- C) token colado à mão ----------------
+
+     Caminho de escape para quando os dois anteriores falham: o usuário
+     obtém um access token por fora (no painel do CDSE, por `curl`, ou
+     em qualquer ferramenta que já esteja autenticada) e cola aqui.
+
+     Existe porque o fluxo de client_credentials pelo navegador depende
+     de o "Allowed origin" do cliente OAuth estar certo — e quando não
+     está, o erro é um CORS opaco, sem mensagem útil, que trava o
+     trabalho sem dizer o porquê. Com o token colado, o app volta a
+     funcionar na hora, e a validade real vem do próprio token. */
+
+  /** Lê `exp` do JWT (segundos) e devolve o vencimento em ms. */
+  function vencimentoDoToken(tk) {
+    var c = claims(tk);
+    if (c && c.exp) return c.exp * 1000;
+    return Date.now() + 3600 * 1000;   // sem exp legível: assume 1 h
+  }
+
+  async function entrarComToken(tk) {
+    tk = String(tk || "").trim().replace(/^Bearer\s+/i, "");
+    if (!tk) throw new Error("token vazio");
+
+    // valida de fato contra a API, em vez de aceitar qualquer string:
+    // uma consulta de catálogo não custa PU e devolve 401 se o token
+    // não presta.
+    var r = await fetch(URL_CATALOGO, {
+      method: "POST",
+      headers: { "Content-Type": "application/json",
+                 Authorization: "Bearer " + tk },
+      body: JSON.stringify({
+        collections: ["sentinel-2-l2a"],
+        bbox: [-44, -20, -43.9, -19.9],
+        datetime: "2024-01-01T00:00:00Z/2024-01-05T00:00:00Z",
+        limit: 1
+      })
+    });
+    if (r.status === 401 || r.status === 403) {
+      throw new Error("token recusado pelo Copernicus (401/403) — "
+                      + "expirado ou de outra conta");
+    }
+    if (!r.ok) throw new Error("Copernicus respondeu HTTP " + r.status);
+
+    var venc = vencimentoDoToken(tk);
+    var sessao = {
+      modo: "token",
+      token: tk,
+      expira: venc,
+      usuario: (claims(tk) || {}).preferred_username || "token colado"
+    };
+    guardarSessao(sessao);
+    return sessao;
+  }
+
   /* ---------------- A) login do usuário ---------------- */
 
   function urlRetorno() {
@@ -596,6 +650,7 @@
   glob.Copernicus = {
     entrar: entrar,
     entrarComCliente: entrarComCliente,
+    entrarComToken: entrarComToken,
     sair: function () { esquecerSessao(); },
     lerSessao: lerSessao,
     tokenValido: tokenValido,

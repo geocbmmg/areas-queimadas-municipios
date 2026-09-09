@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Gera a malha do MONITOR DOS 8 MUNICÍPIOS — o fork do monitor estadual com
+Gera a malha do MONITOR DOS 9 Municípios — o fork do monitor estadual com
 o recorte trocado: em vez do estado inteiro, só as células que tocam os
-8 municípios do estudo de área queimada (2015–2024).
+9 Municípios do estudo de área queimada (2015–2024).
 
   Belo Horizonte (3106200), Betim (3106705),
   Conceição do Mato Dentro (3117504), Congonhas (3118007),
@@ -50,9 +50,16 @@ MUNICIPIOS = {
     "3118007": "Congonhas",
     "3118601": "Contagem",
     "3131307": "Ipatinga",
+    "3147006": "Paracatu",
     "3162955": "São José da Lapa",
     "3168705": "Timóteo",
 }
+
+# Paracatu entrou depois (09/2026) e muda a escala do projeto: sozinho
+# tem 8.229 km² contra 3.269 km² dos outros oito somados, e fica ~200 km
+# a oeste — o retângulo que envolve tudo cresce muito, mas só viram
+# células os blocos que de fato tocam algum município, então o custo
+# acompanha a área, não a distância.
 
 # ------------------------------------------------------------------ premissas
 LADO_MAX_PX = 2500        # teto da Process API por lado
@@ -208,17 +215,34 @@ def main():
             b = [x0 + cx * LADO_CELULA, y0 + cy * LADO_CELULA,
                  x0 + (cx + 1) * LADO_CELULA, y0 + (cy + 1) * LADO_CELULA]
 
-            qx, qy = cx // GRADE_QUADRANTE, cy // GRADE_QUADRANTE
-            qid = "%s%d" % (chr(ord("A") + qx), qy + 1)
+            # Identificador ESTÁVEL: derivado da posição ABSOLUTA na malha
+            # do Mercator, não da posição relativa ao conjunto atual de
+            # municípios. Antes a letra vinha de `cx // GRADE`, contado a
+            # partir do canto do retângulo que envolvia os municípios —
+            # então incluir Paracatu (200 km a oeste) renomeou A1 para C1
+            # e todo o histórico já gravado passou a apontar para
+            # quadrante que não existe mais, sem erro nenhum.
+            # Com a âncora absoluta, acrescentar município no futuro não
+            # mexe em nada do que já foi processado.
+            qax = int(math.floor((x0 + cx * LADO_CELULA) / LADO_QUADRANTE))
+            qay = int(math.floor((y0 + cy * LADO_CELULA) / LADO_QUADRANTE))
+            qid = "%d_%d" % (qax, qay)
+            # o bbox do quadrante também sai da âncora absoluta, para
+            # casar com o id e não depender do recorte atual
             q = quadrantes.setdefault(qid, {
-                "id": qid, "col": qx, "lin": qy,
-                "bbox3857": [x0 + qx * LADO_QUADRANTE, y0 + qy * LADO_QUADRANTE,
-                             x0 + (qx + 1) * LADO_QUADRANTE,
-                             y0 + (qy + 1) * LADO_QUADRANTE],
+                "id": qid, "col": qax, "lin": qay,
+                "bbox3857": [qax * LADO_QUADRANTE, qay * LADO_QUADRANTE,
+                             (qax + 1) * LADO_QUADRANTE,
+                             (qay + 1) * LADO_QUADRANTE],
                 "celulas": [], "area_mg_km2": 0.0
             })
             q["celulas"].append({
-                "n": len(q["celulas"]) + 1,
+                # o número da célula também tem de ser POSICIONAL, não a
+                # ordem de inserção: senão uma célula nova no meio do
+                # quadrante empurraria a numeração das demais e a chave
+                # do controle passaria a apontar para outro pedaço do chão
+                "n": (cy % GRADE_QUADRANTE) * GRADE_QUADRANTE
+                     + (cx % GRADE_QUADRANTE) + 1,
                 "cx": cx, "cy": cy,
                 "bbox3857": [round(v, 1) for v in b],
                 "bbox4326": bbox4326(b),
@@ -333,7 +357,7 @@ def main():
     print()
     print("quadrantes: %d   células (20 m): %d   células (10 m): %d"
           % (len(lista), total_celulas, total_celulas * 4))
-    print("PU/mês dos 8 municípios — 10 m: %s   20 m: %s"
+    print("PU/mês dos 9 Municípios — 10 m: %s   20 m: %s"
           % (f"{pu_total_10:,.0f}".replace(",", "."),
              f"{pu_total_20:,.0f}".replace(",", ".")))
     print("militares (%d PU/mês úteis) — 10 m: %d" %

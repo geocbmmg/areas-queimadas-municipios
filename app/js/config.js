@@ -1,5 +1,5 @@
 /* =====================================================================
-   Configuração do Monitor dos 8 Municípios — o único arquivo a editar ao
+   Configuração do Monitor dos 9 Municípios — o único arquivo a editar ao
    mudar de ambiente. Mesmo Portal e mesmo app OAuth da Calculadora, do
    monitor das UCs e do estadual; armazenamento e domínio próprios.
    ===================================================================== */
@@ -99,5 +99,5 @@ window.CFG = {
   cotaMensalPU: 10000,
   tetoTrabalhoPU: 9000,                // o motor para aqui e retoma na próxima visita
 
-  fonte: "Sentinel-2 (Copernicus) — dNBR · Monitor de Queimadas — 8 Municípios"
+  fonte: "Sentinel-2 (Copernicus) — dNBR · Monitor de Queimadas — 9 Municípios"
 };
