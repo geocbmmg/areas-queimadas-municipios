@@ -151,9 +151,14 @@ rodar de novo continua de onde parou.
 ```
 cd plano
 py.cmd backfill_gee.py --paralelo 3                    # tudo o que falta
-py.cmd backfill_gee.py --quads -20_-9 --celulas 17         # uma célula
-py.cmd backfill_gee.py --ate 2017-12-31                # até uma data
+py.cmd backfill_gee.py "--quads=-20_-9" --celulas 17   # uma celula
+py.cmd backfill_gee.py --ate 2017-12-31                # ate uma data
 ```
+
+> Repare nas **aspas e no `=`** em `"--quads=-20_-9"`. Os IDs de
+> quadrante começam com `-` (são absolutos na grade), e sem isso o
+> argparse os lê como se fossem outra opção: *"argument --quads:
+> expected one argument"*.
 
 Ver o progresso a qualquer momento:
 
@@ -204,17 +209,22 @@ e, no Copernicus, em *Allowed origins* do OAuth client.
 
 ## 9. Onde o processamento parou
 
-Estado em **04/09/2026**, ao passar o trabalho para outra máquina:
+Estado em **09/09/2026**:
 
 - **Painel:** pronto e publicado, com as quatro vistas de validação
-  (cor verdadeira e falsa cor, antes e depois) e o consolidado mensal.
+  (cor verdadeira e falsa cor, antes e depois), o consolidado mensal e
+  a **tela de Metodologia** (B/C e EF editáveis).
 - **Parâmetros no Portal:** completos — 22 classes de biomassa (B×C),
-  66 fatores de emissão, 644 tiles de uso do solo (2017–2023).
-- **Histórico:** **começado, longe do fim.** Rodaram algumas células de
-  2017 (A1 e A2, parcial). Faltam a maioria das 92 células e os anos de
-  2018 a 2025.
-- **Consolidado mensal:** nenhum mês fechado ainda — só faz sentido
-  depois que o histórico do mês estiver completo.
+  66 fatores de emissão, 644 tiles de uso do solo (92 células ×
+  2017–2023).
+- **Histórico: zerado de propósito, para recomeçar do zero.** A entrada
+  de Paracatu trocou os IDs de quadrante (agora absolutos) e a mudança
+  para dado bruto trocou o que se grava em cada polígono. Os ~9.300
+  polígonos antigos ficaram inválidos nas duas frentes e foram
+  apagados; parâmetros e tiles foram preservados.
+- **Consolidado mensal:** nenhum mês fechado — depende do histórico.
+
+O backfill 2017–2025 é a tarefa em curso.
 
 Ou seja: **o próximo passo é rodar o backfill até o fim** (§7), depois
 consolidar os meses no painel e validar por amostragem.
